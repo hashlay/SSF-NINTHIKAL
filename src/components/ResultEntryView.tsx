@@ -54,16 +54,14 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
       if (draftStr) {
         const draft = JSON.parse(draftStr);
         if (draft.selectedCatId) setSelectedCatId(draft.selectedCatId);
-        if (draft.selectedStageType) setSelectedStageType(draft.selectedStageType);
-        if (draft.selectedCompId) setSelectedCompId(draft.selectedCompId);
         if (draft.activeCandidateId) setTempCandidateId(draft.activeCandidateId);
         if (draft.j1Mark !== undefined) setJ1Mark(draft.j1Mark);
         if (draft.j2Mark !== undefined) setJ2Mark(draft.j2Mark);
-        if (draft.resultStatus) setResultStatus(draft.resultStatus);
-        if (draft.remarks) setRemarks(draft.remarks);
+        if (draft.resultStatus !== undefined) setResultStatus(draft.resultStatus);
+        if (draft.remarks !== undefined) setRemarks(draft.remarks);
         if (draft.overrideRank !== undefined) setOverrideRank(draft.overrideRank);
         if (draft.manualRankOverride !== undefined) setManualRankOverride(draft.manualRankOverride);
-        if (draft.overrideReason) setOverrideReason(draft.overrideReason);
+        if (draft.overrideReason !== undefined) setOverrideReason(draft.overrideReason);
         if (draft.publishing !== undefined) setPublishing(draft.publishing);
       }
     } catch (err) {
@@ -89,8 +87,6 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
     try {
       const draft = {
         selectedCatId,
-        selectedStageType,
-        selectedCompId,
         activeCandidateId: activeCandidate ? activeCandidate.id : null,
         j1Mark,
         j2Mark,

@@ -3,7 +3,7 @@ import {
   FileSpreadsheet, Printer, Download, RefreshCw, ClipboardCheck, 
   Users, Trophy, Award, BarChart2, BookOpen 
 } from 'lucide-react';
-import { User, UserRole, Category, Unit, Competition } from '../types';
+import { User, UserRole, Category, Unit, Competition, Team } from '../types';
 
 interface ReportsViewProps {
   user: User;
@@ -14,6 +14,7 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Active Report Type selection: 'participants' | 'results' | 'scoreboard' | 'standings'
@@ -30,16 +31,18 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
 
   const fetchMasters = async () => {
     try {
-      const [cRes, uRes, compRes] = await Promise.all([
+      const [cRes, uRes, compRes, tRes] = await Promise.all([
         fetch('/api/categories'),
         fetch('/api/units'),
-        fetch('/api/competitions')
+        fetch('/api/competitions'),
+        fetch('/api/teams', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
-      const [cData, uData, compData] = await Promise.all([cRes.json(), uRes.json(), compRes.json()]);
+      const [cData, uData, compData, tData] = await Promise.all([cRes.json(), uRes.json(), compRes.json(), tRes.json()]);
 
       setCategories(cData);
       setUnits(uData);
       setCompetitions(compData);
+      setTeams(tData);
     } catch (e) {
       console.error(e);
     } finally {
@@ -100,7 +103,20 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
       headers = ['Candidate/Team Number', 'Unit', 'Judge 1 Mark', 'Judge 2', 'Total Mark', 'Rank', 'Status'];
       rows = previewData.map(r => {
         const u = units.find(unit => unit.id === r.unitId)?.name || '';
-        return [r.participantName || r.teamNumber || 'Group', u, r.judge1Mark, r.judge2Mark, r.totalMark, r.rank || 'N/A', r.status];
+        let displayName = r.participantName;
+        if (!displayName) {
+          if (r.teamId) {
+            const t = teams.find(team => team.id === r.teamId);
+            if (t) {
+              displayName = t.name ? `${t.name} (${t.members.map(m=>m.name).join(', ')})` : t.members.map(m=>m.name).join(', ');
+            } else {
+              displayName = r.teamNumber || 'Group Team';
+            }
+          } else {
+            displayName = r.teamNumber || 'Group Team';
+          }
+        }
+        return [displayName, u, r.judge1Mark, r.judge2Mark, r.totalMark, r.rank, r.status];
       });
     } else if (reportType === 'scoreboard') {
       headers = ['Standing', 'Chest No', 'Candidate Name', 'Unit', 'Category', 'Raw Marks'];
@@ -310,10 +326,27 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
                       {previewData.map(r => {
-                        const u = units.find(unit => unit.id === r.unitId)?.name || '';
+                        let u = units.find(unit => unit.id === r.unitId)?.name || '';
+                        let displayName = r.participantName;
+                        if (!displayName) {
+                          if (r.teamId) {
+                            const t = teams.find(team => team.id === r.teamId);
+                            if (t) {
+                              displayName = t.name ? `${t.name} (${t.members.map(m=>m.name).join(', ')})` : t.members.map(m=>m.name).join(', ');
+                              if (!u && t.unitId) {
+                                u = units.find(unit => unit.id === t.unitId)?.name || '';
+                              }
+                            } else {
+                              displayName = r.teamNumber || 'Group Team';
+                            }
+                          } else {
+                            displayName = r.teamNumber || 'Group Team';
+                          }
+                        }
+                        
                         return (
                           <tr key={r.id}>
-                            <td className="px-4 py-3 font-semibold text-slate-900">{r.participantName || r.teamNumber || 'Group Team'}</td>
+                            <td className="px-4 py-3 font-semibold text-slate-900">{displayName}</td>
                             <td className="px-4 py-3">{u}</td>
                             <td className="px-4 py-3 text-right font-mono">{r.judge1Mark}</td>
                             <td className="px-4 py-3 text-right font-mono">{r.judge2Mark}</td>
