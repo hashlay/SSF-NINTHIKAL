@@ -677,7 +677,7 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
   } = req.body;
 
   // Basic Validation
-  if (!fullName || !dob || !unitId || !selectedCategoryId || !educationStatus) {
+  if (!fullName || !unitId || !selectedCategoryId || !educationStatus) {
     return res.status(400).json({ error: 'Missing required participant fields.' });
   }
 
