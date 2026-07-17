@@ -169,7 +169,8 @@ function ensureDbExists() {
     { id: 'unit_yenmoor', name: 'Yenmoor', code: 'YEN', active: true },
     { id: 'unit_ninthikal', name: 'Ninthikal', code: 'NIN', active: true },
     { id: 'unit_alekkadi', name: 'Alekkadi', code: 'ALE', active: true },
-    { id: 'unit_samahadi', name: 'Samahadi', code: 'SAM', active: true }
+    { id: 'unit_samahadi', name: 'Samahadi', code: 'SAM', active: true },
+    { id: 'unit_karimbila', name: 'Karimbila', code: 'KAR', active: true }
   ];
 
   const initialCategories: Category[] = [
