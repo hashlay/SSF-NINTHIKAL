@@ -124,16 +124,15 @@ export const CalculationService = {
       // Calculate sums
       const individualMarks = filteredIndividualResults.reduce((sum, r) => sum + r.totalMark, 0);
       const groupMarks = filteredGroupResults.reduce((sum, r) => sum + r.totalMark, 0);
-      const overallMarks = individualMarks + groupMarks;
-      const totalEvents = filteredIndividualResults.length + filteredGroupResults.length;
+      const overallMarks = individualMarks; // Modified: Only include individual marks for Individual Scoreboard
+      const totalEvents = filteredIndividualResults.length; // Modified: Only count individual events
       
       const unit = db.units.find(u => u.id === participant.unitId);
       const category = db.categories.find(c => c.id === participant.selectedCategoryId);
       
       // Find rankings in individual events
       const rankPlacements = [
-        ...filteredIndividualResults.map(r => ({ compId: r.competitionId, rank: r.rank, type: 'Individual' })),
-        ...filteredGroupResults.map(r => ({ compId: r.competitionId, rank: r.rank, type: 'Group' }))
+        ...filteredIndividualResults.map(r => ({ compId: r.competitionId, rank: r.rank, type: 'Individual' }))
       ];
       
       return {
