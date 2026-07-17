@@ -268,6 +268,7 @@ apiRouter.post('/auth/login', async (req, res) => {
 
   return res.json({
     message: 'Logged in successfully',
+    token,
     user: {
       id: user.id,
       fullName: user.fullName,
@@ -352,7 +353,7 @@ apiRouter.post('/auth/change-password', authenticate, async (req, res) => {
     maxAge: 8 * 60 * 60 * 1000 // 8 hours
   });
 
-  res.json({ message: 'Password changed successfully' });
+  res.json({ message: 'Password changed successfully', token });
 });
 
 

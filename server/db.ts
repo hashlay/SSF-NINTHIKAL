@@ -374,7 +374,11 @@ function ensureDbExists() {
 export async function saveDb() {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
-    
+  } catch (e) {
+    console.error("Failed to write to database file", e);
+  }
+  
+  try {
     // Sync with MongoDB if connected
     if (isMongoConnected && mongoCollection) {
       await mongoCollection.updateOne(
@@ -384,7 +388,7 @@ export async function saveDb() {
       );
     }
   } catch (e) {
-    console.error("Failed to write to database file", e);
+    console.error("Failed to sync to MongoDB", e);
   }
 }
 
