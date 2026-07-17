@@ -736,14 +736,16 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
     }
   }
 
-  // Generate legacy chest code for profilePhoto (backward compat)
-  const serial = db.participants.length + 1;
-  const unitObj = db.units.find(u => u.id === finalUnitId);
-  const unitCode = unitObj ? unitObj.code : 'GEN';
-  const legacyChestCode = `${unitCode}-${serial.toString().padStart(3, '0')}`;
+  // Pre-generate participant ID to allow chest number generation
+  const participantId = `part_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+  // Auto-generate chest number from the atomic counter system immediately
+  if (!db.chestNumbers) db.chestNumbers = [];
+  const generatedChest = generateNextChestNumber(db, selectedCategoryId, user.id, participantId, finalUnitId);
+  const chestNumberString = generatedChest ? generatedChest.chestNumber.toString() : 'PENDING';
 
   const newParticipant: Participant = {
-    id: `part_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    id: participantId,
     fullName: fullName.trim(),
     dob,
     unitId: finalUnitId,
@@ -757,7 +759,7 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
     guardianPhone,
     address,
     notes,
-    profilePhoto: legacyChestCode,
+    profilePhoto: chestNumberString, // Using numeric chest number directly
     active: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -787,10 +789,6 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
   (db as any).registrations.push(registration);
 
   await dbClient.logAudit(user.id, user.username, user.role, 'Register Participant', 'Participant', newParticipant.id, finalUnitId, undefined, newParticipant);
-
-  // Auto-generate chest number from the new atomic counter system
-  if (!db.chestNumbers) db.chestNumbers = [];
-  const generatedChest = generateNextChestNumber(db, selectedCategoryId, user.id, newParticipant.id, finalUnitId);
 
   await dbClient.save();
 
@@ -1883,6 +1881,10 @@ apiRouter.post('/chest-numbers/generate/:participantId', authenticate, requireRo
     return res.status(500).json({ error: 'Failed to generate chest number.' });
   }
 
+  // Sync to participant profilePhoto
+  participant.profilePhoto = chestNumber.chestNumber.toString();
+  participant.updatedAt = new Date().toISOString();
+
   await dbClient.logAudit(user.id, user.username, user.role, 'Generate Chest Number', 'ChestNumber', chestNumber.id, undefined, undefined, chestNumber);
   await dbClient.save();
 
@@ -1904,7 +1906,11 @@ apiRouter.post('/chest-numbers/generate-bulk', authenticate, requireRole([UserRo
   const generated: ChestNumber[] = [];
   for (const participant of missing) {
     const cn = generateNextChestNumber(db, participant.selectedCategoryId, user.id, participant.id, participant.unitId);
-    if (cn) generated.push(cn);
+    if (cn) {
+      generated.push(cn);
+      participant.profilePhoto = cn.chestNumber.toString();
+      participant.updatedAt = new Date().toISOString();
+    }
   }
 
   await dbClient.logAudit(user.id, user.username, user.role, `Bulk Generate ${generated.length} Chest Numbers`, 'ChestNumber', 'bulk');
@@ -1937,6 +1943,13 @@ apiRouter.put('/chest-numbers/:id', authenticate, requireRole([UserRole.SUPER_AD
 
   const oldCn = { ...cn };
   cn.chestNumber = newNumber;
+
+  // Sync to participant profilePhoto
+  const participant = db.participants.find(p => p.id === cn.participantId);
+  if (participant) {
+    participant.profilePhoto = newNumber.toString();
+    participant.updatedAt = new Date().toISOString();
+  }
 
   await dbClient.logAudit(user.id, user.username, user.role, 'Edit Chest Number', 'ChestNumber', chestId, undefined, oldCn, cn);
   await dbClient.save();
