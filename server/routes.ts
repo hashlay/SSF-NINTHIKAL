@@ -12,6 +12,19 @@ import {
 
 export const apiRouter = express.Router();
 
+// --- SERVERLESS GLOBAL SYNC MIDDLEWARE ---
+// This guarantees that in a stateless environment like Vercel, the in-memory cache
+// is fully populated from MongoDB before any request is processed.
+apiRouter.use(async (req, res, next) => {
+  try {
+    await dbClient.waitForSync();
+    next();
+  } catch (e) {
+    console.error("Database connection failed:", e);
+    res.status(500).json({ error: 'Database connection error' });
+  }
+});
+
 // Helper to hash session tokens
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -56,7 +69,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   // Check if session has expired
   if (new Date(session.expiresAt) < new Date()) {
     session.revokedAt = new Date().toISOString();
-    dbClient.save();
+    await dbClient.save();
     return res.status(401).json({ error: 'Session expired. Please log in again.' });
   }
 
@@ -70,7 +83,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   const lastActivity = session.lastActivityAt ? new Date(session.lastActivityAt).getTime() : 0;
   if (Date.now() - lastActivity > 5 * 60 * 1000) {
     session.lastActivityAt = new Date().toISOString();
-    dbClient.save();
+    await dbClient.save();
   }
 
   // Attach user & session to request
@@ -177,7 +190,7 @@ apiRouter.post('/auth/login', async (req, res) => {
   // Find user
   const user = db.users.find(u => u.username.toLowerCase() === normalizedUsername);
 
-  const logFailure = (reason: string) => {
+  const logFailure = async (reason: string) => {
     const audit: LoginAudit = {
       id: `login_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       username,
@@ -188,7 +201,7 @@ apiRouter.post('/auth/login', async (req, res) => {
       timestamp: new Date().toISOString()
     };
     db.loginAudits.unshift(audit);
-    dbClient.save();
+    await dbClient.save();
 
     // Increment failed attempts
     if (!failedLoginTracker[normalizedUsername]) {
@@ -206,13 +219,13 @@ apiRouter.post('/auth/login', async (req, res) => {
   };
 
   if (!user || !user.active) {
-    return logFailure('User does not exist or is inactive');
+    return await logFailure('User does not exist or is inactive');
   }
 
   // Verify password
   const match = bcrypt.compareSync(password, user.passwordHash);
   if (!match) {
-    return logFailure('Incorrect password');
+    return await logFailure('Incorrect password');
   }
 
   // Success - Clear lockout
@@ -239,7 +252,7 @@ apiRouter.post('/auth/login', async (req, res) => {
   
   // Update last login timestamp
   user.lastLoginAt = new Date().toISOString();
-  dbClient.save();
+  await dbClient.save();
 
   // Audit login success
   const audit: LoginAudit = {
@@ -251,7 +264,7 @@ apiRouter.post('/auth/login', async (req, res) => {
     timestamp: new Date().toISOString()
   };
   db.loginAudits.unshift(audit);
-  dbClient.save();
+  await dbClient.save();
 
   // Set secure HTTP-only cookie
   res.cookie('session_token', token, {
@@ -276,14 +289,14 @@ apiRouter.post('/auth/login', async (req, res) => {
 });
 
 // Logout
-apiRouter.post('/auth/logout', authenticate, (req, res) => {
+apiRouter.post('/auth/logout', authenticate, async (req, res) => {
   const session = (req as any).sessionObj as Session;
   const db = dbClient.get();
   
   const sess = db.sessions.find(s => s.id === session.id);
   if (sess) {
     sess.revokedAt = new Date().toISOString();
-    dbClient.save();
+    await dbClient.save();
   }
 
   res.clearCookie('session_token');
@@ -291,7 +304,7 @@ apiRouter.post('/auth/logout', authenticate, (req, res) => {
 });
 
 // Get Current Session Profile
-apiRouter.get('/auth/session', authenticate, (req, res) => {
+apiRouter.get('/auth/session', authenticate, async (req, res) => {
   const user = (req as any).user as User;
   res.json({
     user: {
@@ -306,7 +319,7 @@ apiRouter.get('/auth/session', authenticate, (req, res) => {
 });
 
 // Change Password
-apiRouter.post('/auth/change-password', authenticate, (req, res) => {
+apiRouter.post('/auth/change-password', authenticate, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const user = (req as any).user as User;
   const db = dbClient.get();
@@ -334,8 +347,8 @@ apiRouter.post('/auth/change-password', authenticate, (req, res) => {
   liveUser.mustChangePassword = false;
   liveUser.passwordChangedAt = new Date().toISOString();
   
-  dbClient.logAudit(liveUser.id, liveUser.username, liveUser.role, 'Change Password', 'User', liveUser.id);
-  dbClient.save();
+  await dbClient.logAudit(liveUser.id, liveUser.username, liveUser.role, 'Change Password', 'User', liveUser.id);
+  await dbClient.save();
 
   res.json({ message: 'Password changed successfully' });
 });
@@ -343,12 +356,12 @@ apiRouter.post('/auth/change-password', authenticate, (req, res) => {
 
 // 2. SETTINGS & EVENT MANAGE
 
-apiRouter.get('/settings', (req, res) => {
+apiRouter.get('/settings', async (req, res) => {
   const db = dbClient.get();
   res.json(db.eventSettings);
 });
 
-apiRouter.put('/settings', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.put('/settings', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const prevSettings = { ...db.eventSettings };
   
@@ -357,8 +370,8 @@ apiRouter.put('/settings', authenticate, requireRole([UserRole.SUPER_ADMIN, User
     ...req.body
   };
   
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Event Settings', 'EventSettings', 'global', undefined, prevSettings, db.eventSettings);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Event Settings', 'EventSettings', 'global', undefined, prevSettings, db.eventSettings);
+  await dbClient.save();
   
   res.json({ message: 'Settings updated successfully', settings: db.eventSettings });
 });
@@ -366,7 +379,7 @@ apiRouter.put('/settings', authenticate, requireRole([UserRole.SUPER_ADMIN, User
 
 // 3. AUDIT LOGS & LISTS
 
-apiRouter.get('/audit-logs', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.get('/audit-logs', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   res.json(db.auditLogs);
 });
@@ -374,12 +387,12 @@ apiRouter.get('/audit-logs', authenticate, requireRole([UserRole.SUPER_ADMIN]), 
 
 // 4. UNITS (CRUD)
 
-apiRouter.get('/units', (req, res) => {
+apiRouter.get('/units', async (req, res) => {
   const db = dbClient.get();
   res.json(db.units);
 });
 
-apiRouter.post('/units', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.post('/units', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const { name, code } = req.body;
   const db = dbClient.get();
 
@@ -400,13 +413,13 @@ apiRouter.post('/units', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req
   };
 
   db.units.push(newUnit);
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create Unit', 'Unit', newUnit.id, undefined, undefined, newUnit);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create Unit', 'Unit', newUnit.id, undefined, undefined, newUnit);
+  await dbClient.save();
 
   res.json({ message: 'Unit created successfully', unit: newUnit });
 });
 
-apiRouter.put('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.put('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const { name, code, active } = req.body;
   const db = dbClient.get();
   const unitIndex = db.units.findIndex(u => u.id === req.params.id);
@@ -428,13 +441,13 @@ apiRouter.put('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (
   if (name) db.units[unitIndex].name = name.trim();
   if (active !== undefined) db.units[unitIndex].active = active;
 
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Unit', 'Unit', req.params.id, undefined, oldUnit, db.units[unitIndex]);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Unit', 'Unit', req.params.id, undefined, oldUnit, db.units[unitIndex]);
+  await dbClient.save();
 
   res.json({ message: 'Unit updated successfully', unit: db.units[unitIndex] });
 });
 
-apiRouter.delete('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.delete('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const unitId = req.params.id;
   
@@ -455,8 +468,8 @@ apiRouter.delete('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN])
 
   const deletedUnit = db.units[index];
   db.units.splice(index, 1);
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete Unit', 'Unit', unitId, undefined, deletedUnit);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete Unit', 'Unit', unitId, undefined, deletedUnit);
+  await dbClient.save();
 
   res.json({ message: 'Unit deleted successfully' });
 });
@@ -464,12 +477,12 @@ apiRouter.delete('/units/:id', authenticate, requireRole([UserRole.SUPER_ADMIN])
 
 // 5. CATEGORIES
 
-apiRouter.get('/categories', (req, res) => {
+apiRouter.get('/categories', async (req, res) => {
   const db = dbClient.get();
   res.json(db.categories);
 });
 
-apiRouter.put('/categories/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.put('/categories/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const { dobStart, dobEnd, active } = req.body;
   const db = dbClient.get();
   const catIndex = db.categories.findIndex(c => c.id === req.params.id);
@@ -484,8 +497,8 @@ apiRouter.put('/categories/:id', authenticate, requireRole([UserRole.SUPER_ADMIN
   if (dobEnd) db.categories[catIndex].dobEnd = dobEnd;
   if (active !== undefined) db.categories[catIndex].active = active;
 
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Category DOB', 'Category', req.params.id, undefined, oldCat, db.categories[catIndex]);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Category DOB', 'Category', req.params.id, undefined, oldCat, db.categories[catIndex]);
+  await dbClient.save();
 
   res.json({ message: 'Category rules updated successfully', category: db.categories[catIndex] });
 });
@@ -493,12 +506,12 @@ apiRouter.put('/categories/:id', authenticate, requireRole([UserRole.SUPER_ADMIN
 
 // 6. COMPETITIONS
 
-apiRouter.get('/competitions', (req, res) => {
+apiRouter.get('/competitions', async (req, res) => {
   const db = dbClient.get();
   res.json(db.competitions);
 });
 
-apiRouter.post('/competitions', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.post('/competitions', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const { name, categoryId, language, participationType, teamSize, duration, stageType, displayOrder } = req.body;
   const db = dbClient.get();
 
@@ -520,13 +533,13 @@ apiRouter.post('/competitions', authenticate, requireRole([UserRole.SUPER_ADMIN]
   };
 
   db.competitions.push(newComp);
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create Competition', 'Competition', newComp.id, undefined, undefined, newComp);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create Competition', 'Competition', newComp.id, undefined, undefined, newComp);
+  await dbClient.save();
 
   res.json({ message: 'Competition created successfully', competition: newComp });
 });
 
-apiRouter.put('/competitions/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.put('/competitions/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const compIndex = db.competitions.findIndex(c => c.id === req.params.id);
 
@@ -544,13 +557,13 @@ apiRouter.put('/competitions/:id', authenticate, requireRole([UserRole.SUPER_ADM
     displayOrder: req.body.displayOrder !== undefined ? Number(req.body.displayOrder) : oldComp.displayOrder,
   };
 
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Competition', 'Competition', req.params.id, undefined, oldComp, db.competitions[compIndex]);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update Competition', 'Competition', req.params.id, undefined, oldComp, db.competitions[compIndex]);
+  await dbClient.save();
 
   res.json({ message: 'Competition updated successfully', competition: db.competitions[compIndex] });
 });
 
-apiRouter.delete('/competitions/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.delete('/competitions/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const compId = req.params.id;
 
@@ -569,8 +582,8 @@ apiRouter.delete('/competitions/:id', authenticate, requireRole([UserRole.SUPER_
 
   const deletedComp = db.competitions[index];
   db.competitions.splice(index, 1);
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete Competition', 'Competition', compId, undefined, deletedComp);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete Competition', 'Competition', compId, undefined, deletedComp);
+  await dbClient.save();
 
   res.json({ message: 'Competition deleted successfully' });
 });
@@ -578,7 +591,7 @@ apiRouter.delete('/competitions/:id', authenticate, requireRole([UserRole.SUPER_
 
 // 7. PARTICIPANT ELIGIBILITY CALCULATION
 
-apiRouter.post('/participants/check-eligibility', (req, res) => {
+apiRouter.post('/participants/check-eligibility', async (req, res) => {
   const { dob, educationStatus } = req.body;
   if (!dob || !educationStatus) {
     return res.status(400).json({ error: 'dob and educationStatus are required.' });
@@ -592,7 +605,7 @@ apiRouter.post('/participants/check-eligibility', (req, res) => {
 // 8. PARTICIPANTS MANAGEMENT
 
 // Read Participants (Filtered / Isolated)
-apiRouter.get('/participants', authenticate, (req, res) => {
+apiRouter.get('/participants', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   
@@ -619,13 +632,13 @@ apiRouter.get('/participants', authenticate, (req, res) => {
 });
 
 // Read all registrations
-apiRouter.get('/registrations', authenticate, (req, res) => {
+apiRouter.get('/registrations', authenticate, async (req, res) => {
   const db = dbClient.get();
   res.json((db as any).registrations || []);
 });
 
 // Duplicate Checking Check
-apiRouter.post('/participants/check-duplicate', authenticate, (req, res) => {
+apiRouter.post('/participants/check-duplicate', authenticate, async (req, res) => {
   const { fullName, dob, unitId } = req.body;
   const db = dbClient.get();
   
@@ -644,7 +657,7 @@ apiRouter.post('/participants/check-duplicate', authenticate, (req, res) => {
 });
 
 // Create Participant
-apiRouter.post('/participants', authenticate, (req, res) => {
+apiRouter.post('/participants', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -766,14 +779,14 @@ apiRouter.post('/participants', authenticate, (req, res) => {
   }
   (db as any).registrations.push(registration);
 
-  dbClient.logAudit(user.id, user.username, user.role, 'Register Participant', 'Participant', newParticipant.id, finalUnitId, undefined, newParticipant);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Register Participant', 'Participant', newParticipant.id, finalUnitId, undefined, newParticipant);
+  await dbClient.save();
 
   res.json({ message: 'Participant registered successfully', participant: newParticipant });
 });
 
 // Update Participant
-apiRouter.put('/participants/:id', authenticate, (req, res) => {
+apiRouter.put('/participants/:id', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -892,14 +905,14 @@ apiRouter.put('/participants/:id', authenticate, (req, res) => {
 
   existingPart.updatedAt = new Date().toISOString();
 
-  dbClient.logAudit(user.id, user.username, user.role, 'Update Participant', 'Participant', partId, existingPart.unitId, oldPart, existingPart);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Participant', 'Participant', partId, existingPart.unitId, oldPart, existingPart);
+  await dbClient.save();
 
   res.json({ message: 'Participant updated successfully', participant: existingPart });
 });
 
 // Soft Delete Participant
-apiRouter.post('/participants/:id/delete', authenticate, (req, res) => {
+apiRouter.post('/participants/:id/delete', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -939,8 +952,8 @@ apiRouter.post('/participants/:id/delete', authenticate, (req, res) => {
   part.deletedBy = user.username;
   part.deletionReason = reason || 'Not specified';
 
-  dbClient.logAudit(user.id, user.username, user.role, 'Soft Delete Participant', 'Participant', partId, part.unitId, undefined, { deletionReason: part.deletionReason });
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Soft Delete Participant', 'Participant', partId, part.unitId, undefined, { deletionReason: part.deletionReason });
+  await dbClient.save();
 
   res.json({ message: 'Participant soft-deleted successfully' });
 });
@@ -948,7 +961,7 @@ apiRouter.post('/participants/:id/delete', authenticate, (req, res) => {
 
 // 9. GROUP TEAM MANAGEMENT (Teams)
 
-apiRouter.get('/teams', authenticate, (req, res) => {
+apiRouter.get('/teams', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   
@@ -969,7 +982,7 @@ apiRouter.get('/teams', authenticate, (req, res) => {
 });
 
 // Create/Register Group Team
-apiRouter.post('/teams', authenticate, (req, res) => {
+apiRouter.post('/teams', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -1065,14 +1078,14 @@ apiRouter.post('/teams', authenticate, (req, res) => {
   db.teams.push(newTeam);
   
   // Log Audit
-  dbClient.logAudit(user.id, user.username, user.role, 'Create Group Team', 'Team', newTeam.id, finalUnitId, undefined, newTeam);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Create Group Team', 'Team', newTeam.id, finalUnitId, undefined, newTeam);
+  await dbClient.save();
 
   res.json({ message: 'Group team registered successfully', team: newTeam });
 });
 
 // Update Team Members
-apiRouter.put('/teams/:id', authenticate, (req, res) => {
+apiRouter.put('/teams/:id', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -1134,14 +1147,14 @@ apiRouter.put('/teams/:id', authenticate, (req, res) => {
   }
 
   team.updatedAt = new Date().toISOString();
-  dbClient.logAudit(user.id, user.username, user.role, 'Update Group Team', 'Team', teamId, team.unitId, oldTeam, team);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Group Team', 'Team', teamId, team.unitId, oldTeam, team);
+  await dbClient.save();
 
   res.json({ message: 'Team updated successfully', team });
 });
 
 // Soft Delete Team
-apiRouter.post('/teams/:id/delete', authenticate, (req, res) => {
+apiRouter.post('/teams/:id/delete', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
 
@@ -1173,8 +1186,8 @@ apiRouter.post('/teams/:id/delete', authenticate, (req, res) => {
   team.deletedAt = new Date().toISOString();
   team.deletedBy = user.username;
 
-  dbClient.logAudit(user.id, user.username, user.role, 'Delete Group Team', 'Team', teamId, team.unitId, undefined, { deleted: true });
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Delete Group Team', 'Team', teamId, team.unitId, undefined, { deleted: true });
+  await dbClient.save();
 
   res.json({ message: 'Team deleted successfully' });
 });
@@ -1183,7 +1196,7 @@ apiRouter.post('/teams/:id/delete', authenticate, (req, res) => {
 // 10. RESULT ENTRY & SCOREBOARDS (CRUD)
 
 // Enter Result (Sector Team and Super Admin only)
-apiRouter.post('/results', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.post('/results', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   const { categoryId, competitionId, participantId, teamId, judge1Mark, judge2Mark, status, remarks, publishedStatus, manualRankOverride, manualRankOverrideReason, overrideRank } = req.body;
@@ -1233,18 +1246,18 @@ apiRouter.post('/results', authenticate, requireRole([UserRole.SUPER_ADMIN, User
   };
 
   db.results.push(newResult);
-  dbClient.save();
+  await dbClient.save();
 
   // Trigger ranks and scores recalculations immediately!
   CalculationService.calculateCompetitionRanks(competitionId);
-  dbClient.logAudit(user.id, user.username, user.role, 'Enter Competition Result', 'Result', newResult.id, undefined, undefined, newResult);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Enter Competition Result', 'Result', newResult.id, undefined, undefined, newResult);
+  await dbClient.save();
 
   res.json({ message: 'Result entered successfully', result: newResult });
 });
 
 // Update Result
-apiRouter.put('/results/:id', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.put('/results/:id', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   const resId = req.params.id;
@@ -1279,7 +1292,7 @@ apiRouter.put('/results/:id', authenticate, requireRole([UserRole.SUPER_ADMIN, U
     resultObj.rank = Number(req.body.overrideRank) || resultObj.rank;
     // Log override audit if different
     if (oldRes.rank !== resultObj.rank || !oldRes.manualRankOverride) {
-      dbClient.logAudit(user.id, user.username, user.role, 'Manual Rank Override', 'Result', resId, undefined, { previousRank: oldRes.rank }, { overriddenRank: resultObj.rank, reason: resultObj.manualRankOverrideReason });
+      await dbClient.logAudit(user.id, user.username, user.role, 'Manual Rank Override', 'Result', resId, undefined, { previousRank: oldRes.rank }, { overriddenRank: resultObj.rank, reason: resultObj.manualRankOverrideReason });
     }
   } else if (req.body.manualRankOverride === false) {
     resultObj.rank = undefined;
@@ -1289,18 +1302,18 @@ apiRouter.put('/results/:id', authenticate, requireRole([UserRole.SUPER_ADMIN, U
   resultObj.updatedAt = new Date().toISOString();
   resultObj.updatedBy = user.id;
 
-  dbClient.save();
+  await dbClient.save();
 
   // Recalculate competition ranks
   CalculationService.calculateCompetitionRanks(resultObj.competitionId);
-  dbClient.logAudit(user.id, user.username, user.role, 'Update Competition Result', 'Result', resId, undefined, oldRes, resultObj);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Competition Result', 'Result', resId, undefined, oldRes, resultObj);
+  await dbClient.save();
 
   res.json({ message: 'Result updated successfully', result: resultObj });
 });
 
 // Soft Delete Result
-apiRouter.post('/results/:id/delete', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.post('/results/:id/delete', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   const resId = req.params.id;
@@ -1314,18 +1327,18 @@ apiRouter.post('/results/:id/delete', authenticate, requireRole([UserRole.SUPER_
   resultObj.deletedAt = new Date().toISOString();
   resultObj.deletedBy = user.username;
 
-  dbClient.save();
+  await dbClient.save();
 
   // Recalculate ranks immediately
   CalculationService.calculateCompetitionRanks(resultObj.competitionId);
-  dbClient.logAudit(user.id, user.username, user.role, 'Delete Competition Result', 'Result', resId, undefined, { deleted: true });
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Delete Competition Result', 'Result', resId, undefined, { deleted: true });
+  await dbClient.save();
 
   res.json({ message: 'Result deleted successfully' });
 });
 
 // Read Results for specific competition
-apiRouter.get('/results', authenticate, (req, res) => {
+apiRouter.get('/results', authenticate, async (req, res) => {
   const db = dbClient.get();
   let results = db.results.filter(r => !r.deletedAt);
 
@@ -1348,7 +1361,7 @@ apiRouter.get('/results', authenticate, (req, res) => {
 });
 
 // Bulk Announce/Un-announce Results for a Competition
-apiRouter.post('/results/announce', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.post('/results/announce', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   const { competitionId, announce } = req.body;
@@ -1368,14 +1381,14 @@ apiRouter.post('/results/announce', authenticate, requireRole([UserRole.SUPER_AD
     r.updatedAt = new Date().toISOString();
   });
 
-  dbClient.logAudit(user.id, user.username, user.role, shouldAnnounce ? 'Announce Competition Results' : 'Un-announce Competition Results', 'Competition', competitionId);
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, shouldAnnounce ? 'Announce Competition Results' : 'Un-announce Competition Results', 'Competition', competitionId);
+  await dbClient.save();
 
   res.json({ message: `Results ${shouldAnnounce ? 'announced' : 'un-announced'} successfully for ${results.length} entries.`, count: results.length });
 });
 
 // Update Participant Chest Number (Sector Team & Super Admin only)
-apiRouter.put('/participants/:id/chest', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), (req, res) => {
+apiRouter.put('/participants/:id/chest', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   const partId = req.params.id;
@@ -1390,8 +1403,8 @@ apiRouter.put('/participants/:id/chest', authenticate, requireRole([UserRole.SUP
   part.profilePhoto = chestNumber || part.profilePhoto;
   part.updatedAt = new Date().toISOString();
 
-  dbClient.logAudit(user.id, user.username, user.role, 'Update Chest Number', 'Participant', partId, part.unitId, { chestNumber: oldChest }, { chestNumber: part.profilePhoto });
-  dbClient.save();
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Chest Number', 'Participant', partId, part.unitId, { chestNumber: oldChest }, { chestNumber: part.profilePhoto });
+  await dbClient.save();
 
   res.json({ message: 'Chest number updated successfully', participant: part });
 });
@@ -1400,7 +1413,7 @@ apiRouter.put('/participants/:id/chest', authenticate, requireRole([UserRole.SUP
 // 11. PUBLIC STANDINGS & INDIVIDUAL SCOREBOARDS (ACCESSIBLE TO ALL LOGGED IN USERS)
 
 // Get Individual Scoreboard (Calculated on server!)
-apiRouter.get('/scoreboard', authenticate, (req, res) => {
+apiRouter.get('/scoreboard', authenticate, async (req, res) => {
   const categoryId = req.query.categoryId ? String(req.query.categoryId) : undefined;
   const unitId = req.query.unitId ? String(req.query.unitId) : undefined;
   const stageType = req.query.stageType ? (String(req.query.stageType) as StageType) : undefined;
@@ -1417,7 +1430,7 @@ apiRouter.get('/scoreboard', authenticate, (req, res) => {
 });
 
 // Get Unit Standings (Calculated on server!)
-apiRouter.get('/standings', authenticate, (req, res) => {
+apiRouter.get('/standings', authenticate, async (req, res) => {
   const categoryId = req.query.categoryId ? String(req.query.categoryId) : undefined;
   const standings = CalculationService.getUnitStandings({ categoryId });
   res.json(standings);
@@ -1427,7 +1440,7 @@ apiRouter.get('/standings', authenticate, (req, res) => {
 // 12. USER MANAGEMENT (SUPER ADMIN ONLY)
 
 // Read users
-apiRouter.get('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.get('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   // Filter sensitive fields
   const safeUsers = db.users.map(u => ({
@@ -1446,7 +1459,7 @@ apiRouter.get('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req,
 });
 
 // Create user
-apiRouter.post('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.post('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const { fullName, username, password, email, role, assignedUnitId } = req.body;
 
@@ -1483,8 +1496,8 @@ apiRouter.post('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req
   };
 
   db.users.push(newUser);
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create User Account', 'User', newUser.id, undefined, undefined, { username: newUser.username, role: newUser.role, assignedUnitId: newUser.assignedUnitId });
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Create User Account', 'User', newUser.id, undefined, undefined, { username: newUser.username, role: newUser.role, assignedUnitId: newUser.assignedUnitId });
+  await dbClient.save();
 
   res.json({
     message: 'User account created successfully. The user must change password upon first login.',
@@ -1500,7 +1513,7 @@ apiRouter.post('/users', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req
 });
 
 // Update user details or reset password
-apiRouter.put('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.put('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const userId = req.params.id;
 
@@ -1545,27 +1558,27 @@ apiRouter.put('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (
   }
 
   targetUser.updatedAt = new Date().toISOString();
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update User Account', 'User', userId, undefined, oldUser, targetUser);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Update User Account', 'User', userId, undefined, oldUser, targetUser);
+  await dbClient.save();
 
   res.json({ message: 'User account updated successfully.' });
 });
 
 // Force log out a user by revoking all their sessions
-apiRouter.post('/users/:id/logout', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.post('/users/:id/logout', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const userId = req.params.id;
   
   db.sessions = db.sessions.map(s => s.userId === userId && !s.revokedAt ? { ...s, revokedAt: new Date().toISOString() } : s);
   
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Force Logout Sessions', 'User', userId);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Force Logout Sessions', 'User', userId);
+  await dbClient.save();
 
   res.json({ message: 'User forced to log out successfully' });
 });
 
 // Delete user
-apiRouter.delete('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), (req, res) => {
+apiRouter.delete('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
   const db = dbClient.get();
   const userId = req.params.id;
 
@@ -1584,8 +1597,8 @@ apiRouter.delete('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN])
   // Revoke all sessions
   db.sessions = db.sessions.map(s => s.userId === userId ? { ...s, revokedAt: new Date().toISOString() } : s);
 
-  dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete User Account', 'User', userId, undefined, deletedUser);
-  dbClient.save();
+  await dbClient.logAudit((req as any).user.id, (req as any).user.username, (req as any).user.role, 'Delete User Account', 'User', userId, undefined, deletedUser);
+  await dbClient.save();
 
   res.json({ message: 'User account deleted successfully' });
 });
@@ -1593,7 +1606,7 @@ apiRouter.delete('/users/:id', authenticate, requireRole([UserRole.SUPER_ADMIN])
 
 // 13. DATA DASHBOARD & STATS SUMMARY
 
-apiRouter.get('/dashboard-stats', authenticate, (req, res) => {
+apiRouter.get('/dashboard-stats', authenticate, async (req, res) => {
   const db = dbClient.get();
   const user = (req as any).user as User;
   

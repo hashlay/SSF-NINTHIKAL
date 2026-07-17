@@ -21,7 +21,9 @@ let mongoCollection: Collection<any> | null = null;
 let isMongoConnecting = false;
 let isMongoConnected = false;
 
-async function connectToMongo() {
+let mongoConnectedPromise: Promise<void> | null = null;
+
+async function _connectToMongo() {
   const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
   if (!mongoUri) {
     console.log("No MONGO_URI/MONGODB_URI found in environment. Using local JSON store (data/db.json).");
@@ -71,6 +73,13 @@ async function connectToMongo() {
   } finally {
     isMongoConnecting = false;
   }
+}
+
+function connectToMongo() {
+  if (!mongoConnectedPromise) {
+    mongoConnectedPromise = _connectToMongo();
+  }
+  return mongoConnectedPromise;
 }
 
 export interface DatabaseSchema {
@@ -361,19 +370,17 @@ function ensureDbExists() {
   console.log("Database initialized and seeded successfully");
 }
 
-export function saveDb() {
+export async function saveDb() {
   try {
     fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf-8');
     
     // Sync with MongoDB if connected
     if (isMongoConnected && mongoCollection) {
-      mongoCollection.updateOne(
+      await mongoCollection.updateOne(
         { _id: 'global_state' as any },
         { $set: db },
         { upsert: true }
-      ).catch(err => {
-        console.error("Failed to persist updated cache to MongoDB:", err);
-      });
+      );
     }
   } catch (e) {
     console.error("Failed to write to database file", e);
@@ -387,17 +394,21 @@ ensureDbExists();
 connectToMongo();
 
 export const dbClient = {
+  waitForSync: () => {
+    return connectToMongo();
+  },
+
   get: () => {
     ensureDbExists();
     return db;
   },
   
-  save: () => {
-    saveDb();
+  save: async () => {
+    await saveDb();
   },
 
   // Audit helper
-  logAudit: (actorId: string | undefined, actorUsername: string | undefined, actorRole: string | undefined, action: string, entityType: string, entityId: string, assignedUnitId?: string, previousData?: any, newData?: any) => {
+  logAudit: async (actorId: string | undefined, actorUsername: string | undefined, actorRole: string | undefined, action: string, entityType: string, entityId: string, assignedUnitId?: string, previousData?: any, newData?: any) => {
     const log: AuditLog = {
       id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       actorUserId: actorId,
@@ -412,7 +423,7 @@ export const dbClient = {
       timestamp: new Date().toISOString()
     };
     db.auditLogs.unshift(log); // newest first
-    saveDb();
+    await saveDb();
     return log;
   }
 };
