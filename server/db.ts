@@ -84,7 +84,6 @@ function connectToMongo() {
 
 export interface DatabaseSchema {
   users: User[];
-  sessions: Session[];
   loginAudits: LoginAudit[];
   auditLogs: AuditLog[];
   units: Unit[];
@@ -117,7 +116,6 @@ function ensureDbExists() {
       db = JSON.parse(data);
       // Ensure all arrays exist
       if (!db.users) db.users = [];
-      if (!db.sessions) db.sessions = [];
       if (!db.loginAudits) db.loginAudits = [];
       if (!db.auditLogs) db.auditLogs = [];
       if (!db.units) db.units = [];
@@ -357,7 +355,6 @@ function ensureDbExists() {
 
   db = {
     users: initialUsers,
-    sessions: [],
     loginAudits: [],
     auditLogs: [],
     units: initialUnits,

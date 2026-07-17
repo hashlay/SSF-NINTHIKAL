@@ -35,6 +35,29 @@ export default function App() {
   const [logsList, setLogsList] = useState<any[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionExpired = urlParams.get('reason') === 'session-expired';
+
+  // Global fetch interceptor to handle 401s
+  useEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+      const response = await originalFetch(input, init);
+      
+      if (response.status === 401 && !url.includes('/auth/login')) {
+        localStorage.removeItem('token');
+        if (!window.location.search.includes('reason=session-expired')) {
+          window.location.href = '/?reason=session-expired';
+        }
+      }
+      return response;
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
+
   // Authenticate using existing token on refresh
   useEffect(() => {
     const fetchMe = async () => {
@@ -139,6 +162,7 @@ export default function App() {
       <LoginView 
         onLoginSuccess={handleLoginSuccess} 
         eventSettings={eventSettings} 
+        sessionExpired={sessionExpired}
       />
     );
   }

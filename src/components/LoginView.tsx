@@ -7,14 +7,22 @@ import Footer from './Footer';
 interface LoginViewProps {
   onLoginSuccess: (user: User, token: string) => void;
   eventSettings: any;
+  sessionExpired?: boolean;
 }
 
-export default function LoginView({ onLoginSuccess, eventSettings }: LoginViewProps) {
+export default function LoginView({ onLoginSuccess, eventSettings, sessionExpired }: LoginViewProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  React.useEffect(() => {
+    if (sessionExpired) {
+      setError('Your session expired. Please log in again.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [sessionExpired]);
 
   // Forced password change fields
   const [mustChange, setMustChange] = useState(false);
