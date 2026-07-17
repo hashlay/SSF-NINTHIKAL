@@ -6,41 +6,52 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  // Security headers & parsers
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+// Security headers & parsers
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // Request logs
-  app.use((req, res, next) => {
-    if (!req.url.startsWith('/@vite') && !req.url.startsWith('/src')) {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    }
-    next();
-  });
+// Request logs
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/@vite') && !req.url.startsWith('/src')) {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  }
+  next();
+});
 
-  // Health check API
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
+// Health check API
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-  // Mount API router
-  app.use('/api', apiRouter);
+// Mount API router
+app.use('/api', apiRouter);
 
-  // Serve static assets/uploaded logos if they exist on disk
-  app.use('/data/uploads', express.static(path.join(process.cwd(), 'data/uploads')));
+// Serve static assets/uploaded logos if they exist on disk
+app.use('/data/uploads', express.static(path.join(process.cwd(), 'data/uploads')));
 
-  // Vite middleware setup for Development
+// If we are NOT running inside Vercel, boot up a full server
+if (!process.env.VERCEL) {
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
+    // Development Mode
+    createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
+    }).then(vite => {
+      app.use(vite.middlewares);
+      console.log("Vite development server middleware mounted");
+      
+      app.listen(PORT, () => {
+        console.log(`=============================================================`);
+        console.log(`🚀 SSF Ninthikal Sector Sahityotsav Dev Server Running on port ${PORT}`);
+        console.log(`=============================================================`);
+      });
+    }).catch(err => {
+      console.error("FATAL: Failed to start Vite Dev Server", err);
+      process.exit(1);
     });
-    app.use(vite.middlewares);
-    console.log("Vite development server middleware mounted");
   } else {
     // Production Mode: Serve the static files from /dist
     const distPath = path.join(process.cwd(), 'dist');
@@ -49,18 +60,14 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
     console.log("Serving production static folder");
+    
+    app.listen(PORT, () => {
+      console.log(`=============================================================`);
+      console.log(`🚀 SSF Ninthikal Sector Sahityotsav Prod Server Running on port ${PORT}`);
+      console.log(`=============================================================`);
+    });
   }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`=============================================================`);
-    console.log(`🚀 SSF Ninthikal Sector Sahityotsav Server Running on port ${PORT}`);
-    console.log(`   Mode: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`   URL:  http://localhost:${PORT}`);
-    console.log(`=============================================================`);
-  });
 }
 
-startServer().catch((err) => {
-  console.error("FATAL: Failed to start the backend server", err);
-  process.exit(1);
-});
+// ALWAYS export the app for Vercel Serverless
+export default app;
