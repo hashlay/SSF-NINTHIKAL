@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Search, Filter, Trash2, Edit3, Eye, FileSpreadsheet, 
-  RefreshCw, CheckCircle, Award, Compass, Sparkles, X, ChevronRight, ListCollapse, Hash 
+  RefreshCw, CheckCircle, Award, Compass, Sparkles, X, ChevronRight, ListCollapse, Hash, Printer 
 } from 'lucide-react';
 import { User, UserRole, Category, Unit, Participant, Competition, EducationStatus } from '../types';
 
@@ -270,8 +270,18 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
             className="px-3 py-2 border border-slate-300 rounded-xl text-slate-700 focus:outline-none text-xs font-semibold bg-slate-50"
           >
             <option value="">All Categories</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {categories.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
           </select>
+          
+          <button 
+            onClick={() => window.print()} 
+            className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl text-xs font-bold shadow-sm transition-all border border-slate-200"
+          >
+            <Printer className="h-4 w-4" />
+            Print List
+          </button>
         </div>
       </div>
 

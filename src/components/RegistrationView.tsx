@@ -141,9 +141,9 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
     institution, course, yearSemester, selectedComps, step, user.id
   ]);
 
-  // Recalculate eligibility when DOB or Education Status changes
+  // Recalculate eligibility when Education Status changes (and optionally DOB)
   useEffect(() => {
-    if (!dob || !educationStatus) return;
+    if (!educationStatus) return;
 
     const checkEligibility = async () => {
       setEligibilityLoading(true);
@@ -455,7 +455,6 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
                 </label>
                 <input
                   type="date"
-                  required
                   value={dob}
                   onChange={(e) => setDob(e.target.value)}
                   className="mt-2 block w-full px-4 py-2.5 border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm shadow-sm font-mono"
@@ -525,7 +524,7 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
               <span className="text-xs font-mono text-slate-400">Assigned Unit: {units.find(u => u.id === selectedUnitId)?.name || 'GEN'}</span>
               <button
                 type="submit"
-                disabled={!fullName || !dob}
+                disabled={!fullName}
                 id="btn_to_events"
                 className="flex items-center px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-md shadow-emerald-600/10"
               >
@@ -691,7 +690,7 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-slate-400 text-xs font-bold block uppercase tracking-wider font-mono">Date of Birth</span>
-                  <span className="font-bold text-slate-700 mt-1 block font-mono">{dob}</span>
+                  <span className="font-bold text-slate-700 mt-1 block font-mono">{dob || 'Not provided'}</span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-xs font-bold block uppercase tracking-wider font-mono">Education</span>

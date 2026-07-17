@@ -103,18 +103,21 @@ export function requireRole(roles: UserRole[]) {
 // Utility to calculate eligible categories
 export function calculateEligibleCategories(dobStr: string, educationStatus: string) {
   const db = dbClient.get();
-  const dob = new Date(dobStr);
+  const hasDob = dobStr && dobStr.trim() !== '';
+  const dob = hasDob ? new Date(dobStr) : new Date();
   
-  if (isNaN(dob.getTime())) {
+  if (hasDob && isNaN(dob.getTime())) {
     return db.categories.map(c => ({ id: c.id, name: c.name, eligible: false, reason: 'Invalid date of birth' }));
   }
 
   return db.categories.map(c => {
-    const start = new Date(c.dobStart);
-    const end = new Date(c.dobEnd);
+    let dobMatch = true;
+    if (hasDob) {
+      const start = new Date(c.dobStart);
+      const end = new Date(c.dobEnd);
+      dobMatch = dob >= start && dob <= end;
+    }
     
-    // Check Date of Birth range
-    const dobMatch = dob >= start && dob <= end;
     if (!dobMatch) {
       return { 
         id: c.id, 
@@ -594,8 +597,8 @@ apiRouter.delete('/competitions/:id', authenticate, requireRole([UserRole.SUPER_
 
 apiRouter.post('/participants/check-eligibility', async (req, res) => {
   const { dob, educationStatus } = req.body;
-  if (!dob || !educationStatus) {
-    return res.status(400).json({ error: 'dob and educationStatus are required.' });
+  if (!educationStatus) {
+    return res.status(400).json({ error: 'educationStatus is required.' });
   }
 
   const results = calculateEligibleCategories(dob, educationStatus);
@@ -643,8 +646,8 @@ apiRouter.post('/participants/check-duplicate', authenticate, async (req, res) =
   const { fullName, dob, unitId } = req.body;
   const db = dbClient.get();
   
-  if (!fullName || !dob || !unitId) {
-    return res.status(400).json({ error: 'fullName, dob and unitId are required' });
+  if (!fullName || !unitId) {
+    return res.status(400).json({ error: 'fullName and unitId are required' });
   }
 
   const matches = db.participants.filter(p => 
