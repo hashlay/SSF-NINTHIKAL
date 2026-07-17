@@ -2,7 +2,8 @@ import React from 'react';
 import { 
   LayoutDashboard, UserPlus, Users, Trophy, Award, 
   Settings, Users2, ShieldAlert, FileSpreadsheet, 
-  LogOut, ClipboardList, BookOpen, Menu, X 
+  LogOut, ClipboardList, BookOpen, Menu, X,
+  Hash, Theater, Scale
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import SSFLogo from './SSFLogo';
@@ -28,10 +29,13 @@ export default function Sidebar({
     { id: 'registration', label: 'New Registration', icon: UserPlus, roles: [UserRole.SUPER_ADMIN, UserRole.UNIT_TEAM_LEADER] },
     { id: 'participants', label: 'Participants', icon: Users, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
     { id: 'teams', label: 'Group Teams', icon: Users2, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
+    { id: 'chest-numbers', label: 'Chest Numbers', icon: Hash, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.GREEN_ROOM_MANAGER] },
+    { id: 'green-room', label: 'Green Room', icon: Theater, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.GREEN_ROOM_MANAGER] },
+    { id: 'judgment-sheets', label: 'Judgment Sheets', icon: Scale, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.JUDGE, UserRole.RESULT_MANAGER] },
     { id: 'registered-events', label: 'Registered Events', icon: ClipboardList, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
     { id: 'announced-results', label: 'Announced Results', icon: Award, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
     { id: 'competitions', label: 'Competitions', icon: ClipboardList, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
-    { id: 'results', label: 'Result Entry', icon: Trophy, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
+    { id: 'results', label: 'Result Entry', icon: Trophy, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.RESULT_MANAGER] },
     { id: 'scoreboard', label: 'Individual Scores', icon: Award, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
     { id: 'standings', label: 'Unit Standings', icon: Trophy, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
     { id: 'reports', label: 'Reports & Exports', icon: FileSpreadsheet, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },

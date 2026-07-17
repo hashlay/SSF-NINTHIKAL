@@ -20,6 +20,9 @@ import UsersView from './components/UsersView';
 import SettingsView from './components/SettingsView';
 import RegisteredEventsView from './components/RegisteredEventsView';
 import AnnouncedResultsView from './components/AnnouncedResultsView';
+import ChestNumbersView from './components/ChestNumbersView';
+import GreenRoomView from './components/GreenRoomView';
+import JudgmentSheetsView from './components/JudgmentSheetsView';
 import Footer from './components/Footer';
 
 export default function App() {
@@ -188,6 +191,12 @@ export default function App() {
         return <ResultEntryView user={user} token={token} />;
       case 'scoreboard':
         return <ScoreboardView user={user} token={token} />;
+      case 'chest-numbers':
+        return <ChestNumbersView user={user} token={token} />;
+      case 'green-room':
+        return <GreenRoomView user={user} token={token} />;
+      case 'judgment-sheets':
+        return <JudgmentSheetsView user={user} token={token} />;
       case 'standings':
         return <StandingsView user={user} token={token} />;
       case 'reports':

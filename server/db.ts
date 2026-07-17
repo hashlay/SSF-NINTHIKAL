@@ -8,7 +8,8 @@ import {
   User, UserRole, Session, LoginAudit, AuditLog, 
   Unit, Category, Competition, Participant, Team, 
   Result, EventSettings, EducationStatus, ParticipationType, 
-  StageType, Gender, ResultStatus
+  StageType, Gender, ResultStatus,
+  ChestNumber, Counter, GreenRoomAssignment, JudgmentSheet, JudgeScore
 } from '../src/types.js';
 import { MongoClient, Collection } from 'mongodb';
 
@@ -94,6 +95,12 @@ export interface DatabaseSchema {
   results: Result[];
   eventSettings: EventSettings;
   registrations: any[];
+  // New collections
+  chestNumbers: ChestNumber[];
+  counters: Counter[];
+  greenRoomAssignments: GreenRoomAssignment[];
+  judgmentSheets: JudgmentSheet[];
+  judgeScores: JudgeScore[];
 }
 
 // Simple in-memory cache synchronized with the file
@@ -125,6 +132,12 @@ function ensureDbExists() {
       if (!db.teams) db.teams = [];
       if (!db.results) db.results = [];
       if (!db.registrations) db.registrations = [];
+      // New collections
+      if (!db.chestNumbers) db.chestNumbers = [];
+      if (!db.counters) db.counters = [];
+      if (!db.greenRoomAssignments) db.greenRoomAssignments = [];
+      if (!db.judgmentSheets) db.judgmentSheets = [];
+      if (!db.judgeScores) db.judgeScores = [];
       return;
     } catch (e) {
       console.error("Error reading database file, initializing fresh one", e);
@@ -353,6 +366,17 @@ function ensureDbExists() {
     autoRankingEnabled: true
   };
 
+  // Chest number counters - one per category, starting at the specified base values
+  const initialCounters: Counter[] = [
+    { id: 'counter_sub_junior', categoryId: 'cat_sub_junior', currentValue: 999 },
+    { id: 'counter_junior', categoryId: 'cat_junior', currentValue: 1999 },
+    { id: 'counter_senior', categoryId: 'cat_senior', currentValue: 2999 },
+    { id: 'counter_campus_junior', categoryId: 'cat_campus_junior', currentValue: 3999 },
+    { id: 'counter_campus_senior', categoryId: 'cat_campus_senior', currentValue: 4999 },
+    { id: 'counter_general', categoryId: 'cat_general', currentValue: 5999 },
+    { id: 'counter_campus_general', categoryId: 'cat_campus_general', currentValue: 6999 }
+  ];
+
   db = {
     users: initialUsers,
     loginAudits: [],
@@ -364,7 +388,12 @@ function ensureDbExists() {
     teams: [],
     results: [],
     eventSettings: initialSettings,
-    registrations: []
+    registrations: [],
+    chestNumbers: [],
+    counters: initialCounters,
+    greenRoomAssignments: [],
+    judgmentSheets: [],
+    judgeScores: []
   };
 
   saveDb();

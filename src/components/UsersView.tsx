@@ -528,6 +528,9 @@ export default function UsersView({ user, token }: UsersViewProps) {
                 >
                   <option value={UserRole.SECTOR_TEAM}>Sector Team Operator</option>
                   <option value={UserRole.UNIT_TEAM_LEADER}>Unit Team Leader</option>
+                  <option value={UserRole.GREEN_ROOM_MANAGER}>Green Room Manager</option>
+                  <option value={UserRole.JUDGE}>Judge</option>
+                  <option value={UserRole.RESULT_MANAGER}>Result Manager</option>
                   <option value={UserRole.SUPER_ADMIN}>Super Admin access</option>
                 </select>
               </div>
@@ -666,6 +669,9 @@ export default function UsersView({ user, token }: UsersViewProps) {
                 >
                   <option value={UserRole.SECTOR_TEAM}>Sector Team Operator</option>
                   <option value={UserRole.UNIT_TEAM_LEADER}>Unit Team Leader</option>
+                  <option value={UserRole.GREEN_ROOM_MANAGER}>Green Room Manager</option>
+                  <option value={UserRole.JUDGE}>Judge</option>
+                  <option value={UserRole.RESULT_MANAGER}>Result Manager</option>
                   <option value={UserRole.SUPER_ADMIN}>Super Admin access</option>
                 </select>
               </div>

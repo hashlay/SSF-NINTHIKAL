@@ -6,7 +6,10 @@
 export enum UserRole {
   SUPER_ADMIN = 'super_admin',
   SECTOR_TEAM = 'sector_team',
-  UNIT_TEAM_LEADER = 'unit_team_leader'
+  UNIT_TEAM_LEADER = 'unit_team_leader',
+  GREEN_ROOM_MANAGER = 'green_room_manager',
+  JUDGE = 'judge',
+  RESULT_MANAGER = 'result_manager'
 }
 
 export interface User {
@@ -230,4 +233,104 @@ export interface EventSettings {
   numJudges: number; // default 2
   markDecimalPrecision: number; // default 2
   autoRankingEnabled: boolean;
+  maxMarksPerJudge?: number; // default 100
+}
+
+// ===== CHEST NUMBER SYSTEM =====
+
+export interface ChestNumber {
+  id: string;
+  chestNumber: number; // e.g. 1000, 1001, 2000
+  participantId: string;
+  categoryId: string;
+  unitId: string;
+  generatedBy: string;
+  generatedAt: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+export interface Counter {
+  id: string;
+  categoryId: string;
+  currentValue: number; // Last assigned number
+}
+
+// ===== GREEN ROOM SYSTEM =====
+
+export enum GreenRoomStatus {
+  PENDING = 'pending',
+  ASSIGNED = 'assigned',
+  PRINTED = 'printed',
+  CHECKED_IN = 'checked_in',
+  STAGE_READY = 'stage_ready'
+}
+
+export interface GreenRoomAssignment {
+  id: string;
+  competitionId: string;
+  categoryId: string;
+  participantId?: string; // For individual
+  teamId?: string; // For group
+  chestNumber?: number;
+  codeLetter: string; // A, B, C... Z, AA, AB...
+  status: GreenRoomStatus;
+  generatedBy: string;
+  generatedAt: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+// ===== JUDGMENT SHEET SYSTEM =====
+
+export enum JudgmentSheetStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  LOCKED = 'locked'
+}
+
+export interface JudgmentSheet {
+  id: string;
+  competitionId: string;
+  categoryId: string;
+  status: JudgmentSheetStatus;
+  maxMarks: number;
+  numJudges: number;
+  createdBy: string;
+  createdAt: string;
+  lockedBy?: string;
+  lockedAt?: string;
+  publishedToResults?: boolean;
+  deletedAt?: string;
+}
+
+export interface JudgeScoreEntry {
+  judgeNumber: number; // 1-5
+  mark: number;
+  remarks?: string;
+}
+
+export enum JudgeScoreStatus {
+  PARTICIPATED = 'participated',
+  ABSENT = 'absent',
+  DISQUALIFIED = 'disqualified'
+}
+
+export interface JudgeScore {
+  id: string;
+  judgmentSheetId: string;
+  competitionId: string;
+  codeLetter: string;
+  greenRoomAssignmentId: string;
+  judgeScores: JudgeScoreEntry[];
+  totalMark: number;
+  averageMark: number;
+  rank?: number;
+  status: JudgeScoreStatus;
+  remarks?: string;
+  enteredBy: string;
+  enteredAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }

@@ -15,6 +15,38 @@ body {
 
 /* Elegant Print Styles */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+  
+  body * {
+    visibility: hidden;
+  }
+  
+  .print-sheet, .print-sheet * {
+    visibility: visible;
+  }
+  
+  .print-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 210mm !important; /* A4 width */
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Ensure table headers repeat on new pages */
+  thead {
+    display: table-header-group;
+  }
+  
+  tr {
+    page-break-inside: avoid;
+  }
+  
   .no-print {
     display: none !important;
   }
@@ -28,7 +60,6 @@ body {
     break-inside: avoid;
   }
 }
-
 /* Elegant custom scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;

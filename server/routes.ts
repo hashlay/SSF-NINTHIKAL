@@ -8,7 +8,9 @@ import {
   UserRole, User, Session, LoginAudit, AuditLog, 
   Unit, Category, Competition, Participant, Team, 
   Registration, Result, EventSettings, EducationStatus, ParticipationType, 
-  StageType, Gender, ResultStatus 
+  StageType, Gender, ResultStatus,
+  ChestNumber, Counter, GreenRoomAssignment, GreenRoomStatus,
+  JudgmentSheet, JudgmentSheetStatus, JudgeScore, JudgeScoreEntry, JudgeScoreStatus
 } from '../src/types.js';
 
 export const apiRouter = express.Router();
@@ -733,11 +735,11 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
     }
   }
 
-  // Generate chest/participant number
+  // Generate legacy chest code for profilePhoto (backward compat)
   const serial = db.participants.length + 1;
   const unitObj = db.units.find(u => u.id === finalUnitId);
   const unitCode = unitObj ? unitObj.code : 'GEN';
-  const chestNumber = `${unitCode}-${serial.toString().padStart(3, '0')}`;
+  const legacyChestCode = `${unitCode}-${serial.toString().padStart(3, '0')}`;
 
   const newParticipant: Participant = {
     id: `part_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -754,7 +756,7 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
     guardianPhone,
     address,
     notes,
-    profilePhoto: chestNumber, // save the chest code or custom photo
+    profilePhoto: legacyChestCode,
     active: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -784,9 +786,18 @@ apiRouter.post('/participants', authenticate, async (req, res) => {
   (db as any).registrations.push(registration);
 
   await dbClient.logAudit(user.id, user.username, user.role, 'Register Participant', 'Participant', newParticipant.id, finalUnitId, undefined, newParticipant);
+
+  // Auto-generate chest number from the new atomic counter system
+  if (!db.chestNumbers) db.chestNumbers = [];
+  const generatedChest = generateNextChestNumber(db, selectedCategoryId, user.id, newParticipant.id, finalUnitId);
+
   await dbClient.save();
 
-  res.json({ message: 'Participant registered successfully', participant: newParticipant });
+  res.json({ 
+    message: 'Participant registered successfully', 
+    participant: newParticipant,
+    chestNumber: generatedChest?.chestNumber 
+  });
 });
 
 // Update Participant
@@ -1733,4 +1744,891 @@ apiRouter.get('/dashboard-stats', authenticate, async (req, res) => {
       };
     })
   });
+});
+
+
+// ===================================================================
+// 14. CHEST NUMBER MANAGEMENT
+// ===================================================================
+
+// Helper: Generate next chest number atomically
+function generateNextChestNumber(db: any, categoryId: string, userId: string, participantId: string, unitId: string): ChestNumber | null {
+  // Ensure counters exist
+  if (!db.counters || db.counters.length === 0) {
+    // Initialize counters if missing
+    const counterMap: Record<string, number> = {
+      'cat_sub_junior': 999,
+      'cat_junior': 1999,
+      'cat_senior': 2999,
+      'cat_campus_junior': 3999,
+      'cat_campus_senior': 4999,
+      'cat_general': 5999,
+      'cat_campus_general': 6999
+    };
+    db.counters = Object.entries(counterMap).map(([catId, val]) => ({
+      id: `counter_${catId.replace('cat_', '')}`,
+      categoryId: catId,
+      currentValue: val
+    }));
+  }
+
+  let counter = db.counters.find((c: Counter) => c.categoryId === categoryId);
+  if (!counter) {
+    // Unknown category, create counter starting at 8000
+    counter = { id: `counter_${categoryId}`, categoryId, currentValue: 7999 };
+    db.counters.push(counter);
+  }
+
+  // Atomic increment
+  counter.currentValue += 1;
+  const chestNum = counter.currentValue;
+
+  // Verify no duplicate
+  const existing = db.chestNumbers.find((cn: ChestNumber) => cn.chestNumber === chestNum);
+  if (existing) {
+    // Skip to next safe number (should never happen with atomic counters)
+    counter.currentValue += 1;
+    return generateNextChestNumber(db, categoryId, userId, participantId, unitId);
+  }
+
+  const chestNumber: ChestNumber = {
+    id: `chest_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    chestNumber: chestNum,
+    participantId,
+    categoryId,
+    unitId,
+    generatedBy: userId,
+    generatedAt: new Date().toISOString()
+  };
+
+  db.chestNumbers.push(chestNumber);
+  return chestNumber;
+}
+
+// Get all chest numbers
+apiRouter.get('/chest-numbers', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const chestNumbers = (db.chestNumbers || []).filter((cn: ChestNumber) => !cn.deletedAt);
+
+  // Enrich with participant/unit/category info
+  const enriched = chestNumbers.map((cn: ChestNumber) => {
+    const participant = db.participants.find(p => p.id === cn.participantId);
+    const unit = db.units.find(u => u.id === cn.unitId);
+    const category = db.categories.find(c => c.id === cn.categoryId);
+    const generatedByUser = db.users.find(u => u.id === cn.generatedBy);
+    return {
+      ...cn,
+      participantName: participant?.fullName || 'Unknown',
+      unitName: unit?.name || 'Unknown',
+      categoryName: category?.name || 'Unknown',
+      generatedByName: generatedByUser?.fullName || 'System'
+    };
+  });
+
+  res.json(enriched);
+});
+
+// Chest number stats
+apiRouter.get('/chest-numbers/stats', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const activeChests = (db.chestNumbers || []).filter((cn: ChestNumber) => !cn.deletedAt);
+  const activeParticipants = db.participants.filter(p => !p.deletedAt);
+  
+  const participantsWithChest = new Set(activeChests.map((cn: ChestNumber) => cn.participantId));
+  const missing = activeParticipants.filter(p => !participantsWithChest.has(p.id));
+
+  // By category
+  const categorySummary = db.categories.map(cat => {
+    const chestsInCat = activeChests.filter((cn: ChestNumber) => cn.categoryId === cat.id);
+    const participantsInCat = activeParticipants.filter(p => p.selectedCategoryId === cat.id);
+    const missingInCat = participantsInCat.filter(p => !participantsWithChest.has(p.id));
+    return {
+      categoryId: cat.id,
+      categoryName: cat.name,
+      generated: chestsInCat.length,
+      total: participantsInCat.length,
+      missing: missingInCat.length
+    };
+  });
+
+  res.json({
+    totalGenerated: activeChests.length,
+    totalParticipants: activeParticipants.length,
+    pending: missing.length,
+    missing: missing.length,
+    categorySummary
+  });
+});
+
+// Generate chest number for single participant
+apiRouter.post('/chest-numbers/generate/:participantId', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const participantId = req.params.participantId;
+
+  const participant = db.participants.find(p => p.id === participantId && !p.deletedAt);
+  if (!participant) {
+    return res.status(404).json({ error: 'Participant not found.' });
+  }
+
+  // Check if already has chest number
+  const existing = (db.chestNumbers || []).find((cn: ChestNumber) => cn.participantId === participantId && !cn.deletedAt);
+  if (existing) {
+    return res.status(400).json({ error: `Participant already has chest number ${existing.chestNumber}.` });
+  }
+
+  const chestNumber = generateNextChestNumber(db, participant.selectedCategoryId, user.id, participantId, participant.unitId);
+  if (!chestNumber) {
+    return res.status(500).json({ error: 'Failed to generate chest number.' });
+  }
+
+  await dbClient.logAudit(user.id, user.username, user.role, 'Generate Chest Number', 'ChestNumber', chestNumber.id, undefined, undefined, chestNumber);
+  await dbClient.save();
+
+  res.json({ message: 'Chest number generated successfully', chestNumber });
+});
+
+// Bulk generate missing chest numbers
+apiRouter.post('/chest-numbers/generate-bulk', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+
+  if (!db.chestNumbers) db.chestNumbers = [];
+
+  const activeParticipants = db.participants.filter(p => !p.deletedAt);
+  const existingParticipantIds = new Set(db.chestNumbers.filter((cn: ChestNumber) => !cn.deletedAt).map((cn: ChestNumber) => cn.participantId));
+  
+  const missing = activeParticipants.filter(p => !existingParticipantIds.has(p.id));
+
+  const generated: ChestNumber[] = [];
+  for (const participant of missing) {
+    const cn = generateNextChestNumber(db, participant.selectedCategoryId, user.id, participant.id, participant.unitId);
+    if (cn) generated.push(cn);
+  }
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Bulk Generate ${generated.length} Chest Numbers`, 'ChestNumber', 'bulk');
+  await dbClient.save();
+
+  res.json({ message: `Generated ${generated.length} chest numbers`, count: generated.length, chestNumbers: generated });
+});
+
+// Edit chest number (Admin only)
+apiRouter.put('/chest-numbers/:id', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const chestId = req.params.id;
+
+  const cn = (db.chestNumbers || []).find((c: ChestNumber) => c.id === chestId && !c.deletedAt);
+  if (!cn) {
+    return res.status(404).json({ error: 'Chest number not found.' });
+  }
+
+  const { chestNumber: newNumber } = req.body;
+  if (!newNumber || typeof newNumber !== 'number') {
+    return res.status(400).json({ error: 'Valid chest number is required.' });
+  }
+
+  // Check duplicate
+  const duplicate = (db.chestNumbers || []).find((c: ChestNumber) => c.chestNumber === newNumber && c.id !== chestId && !c.deletedAt);
+  if (duplicate) {
+    return res.status(400).json({ error: `Chest number ${newNumber} is already assigned.` });
+  }
+
+  const oldCn = { ...cn };
+  cn.chestNumber = newNumber;
+
+  await dbClient.logAudit(user.id, user.username, user.role, 'Edit Chest Number', 'ChestNumber', chestId, undefined, oldCn, cn);
+  await dbClient.save();
+
+  res.json({ message: 'Chest number updated successfully', chestNumber: cn });
+});
+
+// Export chest numbers as CSV
+apiRouter.get('/chest-numbers/export', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const chestNumbers = (db.chestNumbers || []).filter((cn: ChestNumber) => !cn.deletedAt);
+
+  let csv = 'Chest Number,Participant Name,Unit,Category,Generated Date\n';
+  for (const cn of chestNumbers) {
+    const p = db.participants.find(part => part.id === cn.participantId);
+    const u = db.units.find(unit => unit.id === cn.unitId);
+    const c = db.categories.find(cat => cat.id === cn.categoryId);
+    csv += `${cn.chestNumber},"${p?.fullName || 'Unknown'}","${u?.name || 'Unknown'}","${c?.name || 'Unknown'}","${cn.generatedAt}"\n`;
+  }
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="chest-numbers.csv"');
+  res.send(csv);
+});
+
+
+// ===================================================================
+// 15. GREEN ROOM MANAGEMENT
+// ===================================================================
+
+// Helper: Generate code letter from index (0=A, 1=B, ..., 25=Z, 26=AA, 27=AB...)
+function indexToCodeLetter(index: number): string {
+  let result = '';
+  let n = index;
+  do {
+    result = String.fromCharCode(65 + (n % 26)) + result;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return result;
+}
+
+// Get all green room assignments
+apiRouter.get('/green-room', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const assignments = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => !a.deletedAt);
+
+  const enriched = assignments.map((a: GreenRoomAssignment) => {
+    const competition = db.competitions.find(c => c.id === a.competitionId);
+    const category = db.categories.find(c => c.id === a.categoryId);
+    let participantName = '';
+    let unitName = '';
+    if (a.participantId) {
+      const p = db.participants.find(part => part.id === a.participantId);
+      participantName = p?.fullName || 'Unknown';
+      unitName = db.units.find(u => u.id === p?.unitId)?.name || 'Unknown';
+    } else if (a.teamId) {
+      const t = db.teams.find(team => team.id === a.teamId);
+      participantName = t?.teamNumber || 'Unknown Team';
+      unitName = db.units.find(u => u.id === t?.unitId)?.name || 'Unknown';
+    }
+    return {
+      ...a,
+      competitionName: competition?.name || 'Unknown',
+      categoryName: category?.name || 'Unknown',
+      participantName,
+      unitName
+    };
+  });
+
+  res.json(enriched);
+});
+
+// Green room stats
+apiRouter.get('/green-room/stats', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const assignments = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => !a.deletedAt);
+  
+  // Total competitions that have registrations
+  const allComps = db.competitions.filter(c => c.active);
+  const assignedCompIds = new Set(assignments.map((a: GreenRoomAssignment) => a.competitionId));
+  
+  res.json({
+    totalCompetitions: allComps.length,
+    assigned: assignedCompIds.size,
+    pending: allComps.length - assignedCompIds.size,
+    printed: assignments.filter((a: GreenRoomAssignment) => a.status === GreenRoomStatus.PRINTED || a.status === GreenRoomStatus.CHECKED_IN || a.status === GreenRoomStatus.STAGE_READY).length,
+    totalAssignments: assignments.length
+  });
+});
+
+// Get assignments for a specific competition
+apiRouter.get('/green-room/competition/:competitionId', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const competitionId = req.params.competitionId;
+  const assignments = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => a.competitionId === competitionId && !a.deletedAt);
+
+  const enriched = assignments.map((a: GreenRoomAssignment) => {
+    let participantName = '';
+    let unitName = '';
+    if (a.participantId) {
+      const p = db.participants.find(part => part.id === a.participantId);
+      participantName = p?.fullName || 'Unknown';
+      unitName = db.units.find(u => u.id === p?.unitId)?.name || 'Unknown';
+    } else if (a.teamId) {
+      const t = db.teams.find(team => team.id === a.teamId);
+      participantName = t?.teamNumber || 'Unknown Team';
+      unitName = db.units.find(u => u.id === t?.unitId)?.name || 'Unknown';
+    }
+    return {
+      ...a,
+      participantName,
+      unitName
+    };
+  });
+
+  res.json(enriched);
+});
+
+// Generate random codes for a competition
+apiRouter.post('/green-room/generate', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.GREEN_ROOM_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const { competitionId } = req.body;
+
+  if (!competitionId) {
+    return res.status(400).json({ error: 'competitionId is required.' });
+  }
+
+  const competition = db.competitions.find(c => c.id === competitionId);
+  if (!competition) {
+    return res.status(404).json({ error: 'Competition not found.' });
+  }
+
+  if (!db.greenRoomAssignments) db.greenRoomAssignments = [];
+
+  // Check if already generated
+  const existing = db.greenRoomAssignments.filter((a: GreenRoomAssignment) => a.competitionId === competitionId && !a.deletedAt);
+  if (existing.length > 0) {
+    return res.status(400).json({ error: 'Green room codes already generated for this competition. Use regenerate to replace.' });
+  }
+
+  // Find registered participants/teams for this competition
+  let entries: { participantId?: string; teamId?: string; chestNumber?: number }[] = [];
+
+  if (competition.participationType === ParticipationType.INDIVIDUAL) {
+    // Find participants registered for this competition
+    const registrations = (db.registrations || []).filter((r: any) =>
+      r.selectedIndividualCompetitionIds.includes(competitionId)
+    );
+    for (const reg of registrations) {
+      const participant = db.participants.find(p => p.id === reg.participantId && !p.deletedAt);
+      if (!participant) continue;
+      
+      // Must have chest number
+      const cn = (db.chestNumbers || []).find((c: ChestNumber) => c.participantId === participant.id && !c.deletedAt);
+      if (!cn) continue;
+      
+      entries.push({ participantId: participant.id, chestNumber: cn.chestNumber });
+    }
+  } else {
+    // Group: find teams for this competition
+    const teams = db.teams.filter(t => t.competitionId === competitionId && !t.deletedAt);
+    for (const team of teams) {
+      entries.push({ teamId: team.id });
+    }
+  }
+
+  if (entries.length === 0) {
+    return res.status(400).json({ error: 'No registered participants/teams with chest numbers found for this competition.' });
+  }
+
+  // Shuffle entries randomly (Fisher-Yates)
+  for (let i = entries.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [entries[i], entries[j]] = [entries[j], entries[i]];
+  }
+
+  // Assign code letters
+  const assignments: GreenRoomAssignment[] = entries.map((entry, index) => ({
+    id: `gr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    competitionId,
+    categoryId: competition.categoryId,
+    participantId: entry.participantId,
+    teamId: entry.teamId,
+    chestNumber: entry.chestNumber,
+    codeLetter: indexToCodeLetter(index),
+    status: GreenRoomStatus.ASSIGNED,
+    generatedBy: user.id,
+    generatedAt: new Date().toISOString()
+  }));
+
+  db.greenRoomAssignments.push(...assignments);
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Generate Green Room Codes for ${competition.name}`, 'GreenRoom', competitionId);
+  await dbClient.save();
+
+  res.json({ message: `Generated ${assignments.length} code assignments`, assignments });
+});
+
+// Regenerate codes (Admin only, with confirmation)
+apiRouter.post('/green-room/regenerate', authenticate, requireRole([UserRole.SUPER_ADMIN]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const { competitionId, confirmed } = req.body;
+
+  if (!competitionId) {
+    return res.status(400).json({ error: 'competitionId is required.' });
+  }
+  if (!confirmed) {
+    return res.status(400).json({ error: 'Confirmation required to regenerate codes.', requireConfirmation: true });
+  }
+
+  // Soft-delete existing assignments
+  const existing = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => a.competitionId === competitionId && !a.deletedAt);
+  for (const a of existing) {
+    a.deletedAt = new Date().toISOString();
+    a.deletedBy = user.id;
+  }
+
+  await dbClient.save();
+
+  // Now call the generate logic again by making the request body contain competitionId
+  // We'll just inline the generation logic
+  const competition = db.competitions.find(c => c.id === competitionId);
+  if (!competition) {
+    return res.status(404).json({ error: 'Competition not found.' });
+  }
+
+  let entries: { participantId?: string; teamId?: string; chestNumber?: number }[] = [];
+  if (competition.participationType === ParticipationType.INDIVIDUAL) {
+    const registrations = (db.registrations || []).filter((r: any) =>
+      r.selectedIndividualCompetitionIds.includes(competitionId)
+    );
+    for (const reg of registrations) {
+      const participant = db.participants.find(p => p.id === reg.participantId && !p.deletedAt);
+      if (!participant) continue;
+      const cn = (db.chestNumbers || []).find((c: ChestNumber) => c.participantId === participant.id && !c.deletedAt);
+      if (!cn) continue;
+      entries.push({ participantId: participant.id, chestNumber: cn.chestNumber });
+    }
+  } else {
+    const teams = db.teams.filter(t => t.competitionId === competitionId && !t.deletedAt);
+    for (const team of teams) {
+      entries.push({ teamId: team.id });
+    }
+  }
+
+  // Shuffle
+  for (let i = entries.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [entries[i], entries[j]] = [entries[j], entries[i]];
+  }
+
+  const assignments: GreenRoomAssignment[] = entries.map((entry, index) => ({
+    id: `gr_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${index}`,
+    competitionId,
+    categoryId: competition.categoryId,
+    participantId: entry.participantId,
+    teamId: entry.teamId,
+    chestNumber: entry.chestNumber,
+    codeLetter: indexToCodeLetter(index),
+    status: GreenRoomStatus.ASSIGNED,
+    generatedBy: user.id,
+    generatedAt: new Date().toISOString()
+  }));
+
+  db.greenRoomAssignments.push(...assignments);
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Regenerate Green Room Codes for ${competition.name}`, 'GreenRoom', competitionId);
+  await dbClient.save();
+
+  res.json({ message: `Regenerated ${assignments.length} code assignments`, assignments });
+});
+
+// Update assignment status
+apiRouter.put('/green-room/:id/status', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.GREEN_ROOM_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const assignmentId = req.params.id;
+  const { status } = req.body;
+
+  if (!status || !Object.values(GreenRoomStatus).includes(status)) {
+    return res.status(400).json({ error: 'Valid status is required.' });
+  }
+
+  const assignment = (db.greenRoomAssignments || []).find((a: GreenRoomAssignment) => a.id === assignmentId && !a.deletedAt);
+  if (!assignment) {
+    return res.status(404).json({ error: 'Assignment not found.' });
+  }
+
+  const old = { ...assignment };
+  assignment.status = status;
+
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Green Room Status', 'GreenRoom', assignmentId, undefined, old, assignment);
+  await dbClient.save();
+
+  res.json({ message: 'Status updated', assignment });
+});
+
+// Bulk update status for competition (e.g. mark all as Printed)
+apiRouter.put('/green-room/competition/:competitionId/status', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.GREEN_ROOM_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const { status } = req.body;
+  const competitionId = req.params.competitionId;
+
+  if (!status || !Object.values(GreenRoomStatus).includes(status)) {
+    return res.status(400).json({ error: 'Valid status is required.' });
+  }
+
+  const assignments = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => a.competitionId === competitionId && !a.deletedAt);
+  let updated = 0;
+  for (const a of assignments) {
+    a.status = status;
+    updated++;
+  }
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Bulk Update Green Room Status to ${status}`, 'GreenRoom', competitionId);
+  await dbClient.save();
+
+  res.json({ message: `Updated ${updated} assignments to ${status}` });
+});
+
+
+// ===================================================================
+// 16. JUDGMENT SHEET MANAGEMENT
+// ===================================================================
+
+// Get all judgment sheets
+apiRouter.get('/judgment-sheets', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const sheets = (db.judgmentSheets || []).filter((s: JudgmentSheet) => !s.deletedAt);
+
+  const enriched = sheets.map((s: JudgmentSheet) => {
+    const competition = db.competitions.find(c => c.id === s.competitionId);
+    const category = db.categories.find(c => c.id === s.categoryId);
+    const scores = (db.judgeScores || []).filter((sc: JudgeScore) => sc.judgmentSheetId === s.id);
+    return {
+      ...s,
+      competitionName: competition?.name || 'Unknown',
+      categoryName: category?.name || 'Unknown',
+      participationType: competition?.participationType || 'unknown',
+      stageType: competition?.stageType || 'unknown',
+      scoresCount: scores.length
+    };
+  });
+
+  res.json(enriched);
+});
+
+// Judgment sheet stats
+apiRouter.get('/judgment-sheets/stats', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const sheets = (db.judgmentSheets || []).filter((s: JudgmentSheet) => !s.deletedAt);
+
+  res.json({
+    totalSheets: sheets.length,
+    pending: sheets.filter(s => s.status === JudgmentSheetStatus.PENDING).length,
+    inProgress: sheets.filter(s => s.status === JudgmentSheetStatus.IN_PROGRESS).length,
+    completed: sheets.filter(s => s.status === JudgmentSheetStatus.COMPLETED).length,
+    locked: sheets.filter(s => s.status === JudgmentSheetStatus.LOCKED).length
+  });
+});
+
+// Generate judgment sheet for a competition
+apiRouter.post('/judgment-sheets/generate', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.RESULT_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const { competitionId, maxMarks } = req.body;
+
+  if (!competitionId) {
+    return res.status(400).json({ error: 'competitionId is required.' });
+  }
+
+  const competition = db.competitions.find(c => c.id === competitionId);
+  if (!competition) {
+    return res.status(404).json({ error: 'Competition not found.' });
+  }
+
+  if (!db.judgmentSheets) db.judgmentSheets = [];
+  if (!db.judgeScores) db.judgeScores = [];
+
+  // Check if already exists
+  const existing = db.judgmentSheets.find((s: JudgmentSheet) => s.competitionId === competitionId && !s.deletedAt);
+  if (existing) {
+    return res.status(400).json({ error: 'Judgment sheet already exists for this competition.' });
+  }
+
+  // Check green room assignments exist
+  const grAssignments = (db.greenRoomAssignments || []).filter((a: GreenRoomAssignment) => a.competitionId === competitionId && !a.deletedAt);
+  if (grAssignments.length === 0) {
+    return res.status(400).json({ error: 'Green room assignments must be generated before creating a judgment sheet.' });
+  }
+
+  const numJudges = db.eventSettings.numJudges || 2;
+  const finalMaxMarks = maxMarks || db.eventSettings.maxMarksPerJudge || 100;
+
+  const sheet: JudgmentSheet = {
+    id: `js_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    competitionId,
+    categoryId: competition.categoryId,
+    status: JudgmentSheetStatus.PENDING,
+    maxMarks: finalMaxMarks,
+    numJudges,
+    createdBy: user.id,
+    createdAt: new Date().toISOString()
+  };
+
+  db.judgmentSheets.push(sheet);
+
+  // Pre-create score entries for each green room assignment
+  for (const gr of grAssignments) {
+    const score: JudgeScore = {
+      id: `score_${Date.now()}_${Math.random().toString(36).substr(2, 5)}_${gr.codeLetter}`,
+      judgmentSheetId: sheet.id,
+      competitionId,
+      codeLetter: gr.codeLetter,
+      greenRoomAssignmentId: gr.id,
+      judgeScores: [],
+      totalMark: 0,
+      averageMark: 0,
+      status: JudgeScoreStatus.PARTICIPATED,
+      enteredBy: user.id,
+      enteredAt: new Date().toISOString()
+    };
+    db.judgeScores.push(score);
+  }
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Generate Judgment Sheet for ${competition.name}`, 'JudgmentSheet', sheet.id);
+  await dbClient.save();
+
+  res.json({ message: 'Judgment sheet created', sheet });
+});
+
+// Get a judgment sheet (anonymous - no participant names)
+apiRouter.get('/judgment-sheets/:id', authenticate, async (req, res) => {
+  const db = dbClient.get();
+  const sheetId = req.params.id;
+  const user = (req as any).user as User;
+
+  const sheet = (db.judgmentSheets || []).find((s: JudgmentSheet) => s.id === sheetId && !s.deletedAt);
+  if (!sheet) {
+    return res.status(404).json({ error: 'Judgment sheet not found.' });
+  }
+
+  const competition = db.competitions.find(c => c.id === sheet.competitionId);
+  const category = db.categories.find(c => c.id === sheet.categoryId);
+  const scores = (db.judgeScores || []).filter((s: JudgeScore) => s.judgmentSheetId === sheetId);
+
+  // For judges, NEVER show participant identity
+  const isJudge = user.role === UserRole.JUDGE;
+  
+  const enrichedScores = scores.map((s: JudgeScore) => {
+    const base: any = {
+      id: s.id,
+      codeLetter: s.codeLetter,
+      judgeScores: s.judgeScores,
+      totalMark: s.totalMark,
+      averageMark: s.averageMark,
+      rank: s.rank,
+      status: s.status,
+      remarks: s.remarks
+    };
+
+    // Only non-judge users get to see the mapping (for result management)
+    if (!isJudge) {
+      const gr = (db.greenRoomAssignments || []).find((a: GreenRoomAssignment) => a.id === s.greenRoomAssignmentId);
+      if (gr) {
+        base.chestNumber = gr.chestNumber;
+        if (gr.participantId) {
+          const p = db.participants.find(part => part.id === gr.participantId);
+          base.participantName = p?.fullName;
+          base.unitName = db.units.find(u => u.id === p?.unitId)?.name;
+        } else if (gr.teamId) {
+          const t = db.teams.find(team => team.id === gr.teamId);
+          base.participantName = t?.teamNumber;
+          base.unitName = db.units.find(u => u.id === t?.unitId)?.name;
+        }
+      }
+    }
+
+    return base;
+  });
+
+  // Sort by code letter
+  enrichedScores.sort((a: any, b: any) => a.codeLetter.localeCompare(b.codeLetter));
+
+  res.json({
+    sheet: {
+      ...sheet,
+      competitionName: competition?.name || 'Unknown',
+      categoryName: category?.name || 'Unknown',
+      participationType: competition?.participationType,
+      stageType: competition?.stageType
+    },
+    scores: enrichedScores
+  });
+});
+
+// Enter/update marks for a judgment sheet
+apiRouter.post('/judgment-sheets/:id/scores', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.JUDGE, UserRole.RESULT_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const sheetId = req.params.id;
+
+  const sheet = (db.judgmentSheets || []).find((s: JudgmentSheet) => s.id === sheetId && !s.deletedAt);
+  if (!sheet) {
+    return res.status(404).json({ error: 'Judgment sheet not found.' });
+  }
+
+  if (sheet.status === JudgmentSheetStatus.LOCKED) {
+    return res.status(400).json({ error: 'Judgment sheet is locked. Cannot modify scores.' });
+  }
+
+  const { scores } = req.body;
+  if (!scores || !Array.isArray(scores)) {
+    return res.status(400).json({ error: 'scores array is required.' });
+  }
+
+  for (const scoreUpdate of scores) {
+    const { scoreId, judgeScores: judgeMarks, status, remarks } = scoreUpdate;
+
+    const existingScore = (db.judgeScores || []).find((s: JudgeScore) => s.id === scoreId && s.judgmentSheetId === sheetId);
+    if (!existingScore) continue;
+
+    if (status) {
+      existingScore.status = status;
+    }
+    if (remarks !== undefined) {
+      existingScore.remarks = remarks;
+    }
+
+    if (judgeMarks && Array.isArray(judgeMarks)) {
+      // Validate marks
+      for (const jm of judgeMarks) {
+        if (typeof jm.mark !== 'number' || jm.mark < 0 || jm.mark > sheet.maxMarks) {
+          return res.status(400).json({ error: `Invalid mark ${jm.mark} for judge ${jm.judgeNumber}. Must be between 0 and ${sheet.maxMarks}.` });
+        }
+      }
+      existingScore.judgeScores = judgeMarks;
+
+      // Calculate total and average
+      if (existingScore.status === JudgeScoreStatus.PARTICIPATED) {
+        const total = judgeMarks.reduce((sum: number, jm: JudgeScoreEntry) => sum + jm.mark, 0);
+        const avg = judgeMarks.length > 0 ? total / judgeMarks.length : 0;
+        existingScore.totalMark = Math.round(total * 100) / 100;
+        existingScore.averageMark = Math.round(avg * 100) / 100;
+      } else {
+        existingScore.totalMark = 0;
+        existingScore.averageMark = 0;
+      }
+    }
+
+    existingScore.updatedBy = user.id;
+    existingScore.updatedAt = new Date().toISOString();
+  }
+
+  // Update sheet status
+  const allScores = (db.judgeScores || []).filter((s: JudgeScore) => s.judgmentSheetId === sheetId);
+  const hasAnyScores = allScores.some(s => s.judgeScores.length > 0 || s.status !== JudgeScoreStatus.PARTICIPATED);
+  const allComplete = allScores.every(s => s.judgeScores.length >= sheet.numJudges || s.status !== JudgeScoreStatus.PARTICIPATED);
+  
+  if (allComplete && allScores.length > 0) {
+    sheet.status = JudgmentSheetStatus.COMPLETED;
+  } else if (hasAnyScores) {
+    sheet.status = JudgmentSheetStatus.IN_PROGRESS;
+  }
+
+  // Calculate ranks for participated entries
+  const participatedScores = allScores.filter(s => s.status === JudgeScoreStatus.PARTICIPATED && s.judgeScores.length > 0);
+  participatedScores.sort((a, b) => b.totalMark - a.totalMark);
+  let currentRank = 1;
+  for (let i = 0; i < participatedScores.length; i++) {
+    if (i > 0 && participatedScores[i].totalMark < participatedScores[i - 1].totalMark) {
+      currentRank = i + 1;
+    }
+    participatedScores[i].rank = currentRank;
+  }
+  // Clear ranks for non-participated
+  allScores.filter(s => s.status !== JudgeScoreStatus.PARTICIPATED).forEach(s => { s.rank = undefined; });
+
+  await dbClient.logAudit(user.id, user.username, user.role, 'Update Judgment Scores', 'JudgmentSheet', sheetId);
+  await dbClient.save();
+
+  res.json({ message: 'Scores updated successfully' });
+});
+
+// Lock judgment sheet results
+apiRouter.post('/judgment-sheets/:id/lock', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.RESULT_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const sheetId = req.params.id;
+
+  const sheet = (db.judgmentSheets || []).find((s: JudgmentSheet) => s.id === sheetId && !s.deletedAt);
+  if (!sheet) {
+    return res.status(404).json({ error: 'Judgment sheet not found.' });
+  }
+
+  if (sheet.status === JudgmentSheetStatus.LOCKED) {
+    return res.status(400).json({ error: 'Sheet is already locked.' });
+  }
+
+  sheet.status = JudgmentSheetStatus.LOCKED;
+  sheet.lockedBy = user.id;
+  sheet.lockedAt = new Date().toISOString();
+
+  await dbClient.logAudit(user.id, user.username, user.role, 'Lock Judgment Sheet', 'JudgmentSheet', sheetId);
+  await dbClient.save();
+
+  res.json({ message: 'Judgment sheet locked successfully' });
+});
+
+// Calculate results and push to the existing Result module
+apiRouter.post('/judgment-sheets/:id/calculate', authenticate, requireRole([UserRole.SUPER_ADMIN, UserRole.RESULT_MANAGER]), async (req, res) => {
+  const db = dbClient.get();
+  const user = (req as any).user as User;
+  const sheetId = req.params.id;
+
+  const sheet = (db.judgmentSheets || []).find((s: JudgmentSheet) => s.id === sheetId && !s.deletedAt);
+  if (!sheet) {
+    return res.status(404).json({ error: 'Judgment sheet not found.' });
+  }
+
+  const scores = (db.judgeScores || []).filter((s: JudgeScore) => s.judgmentSheetId === sheetId);
+  const competition = db.competitions.find(c => c.id === sheet.competitionId);
+  if (!competition) {
+    return res.status(404).json({ error: 'Competition not found.' });
+  }
+
+  let resultsCreated = 0;
+
+  for (const score of scores) {
+    // Resolve the green room assignment to get participantId/teamId
+    const gr = (db.greenRoomAssignments || []).find((a: GreenRoomAssignment) => a.id === score.greenRoomAssignmentId);
+    if (!gr) continue;
+
+    // Map judge scores to the existing Result format (judge1Mark, judge2Mark)
+    const j1 = score.judgeScores.find(j => j.judgeNumber === 1);
+    const j2 = score.judgeScores.find(j => j.judgeNumber === 2);
+
+    // Check if result already exists for this participant/team in this competition
+    const existingResult = db.results.find(r =>
+      r.competitionId === sheet.competitionId &&
+      !r.deletedAt &&
+      ((gr.participantId && r.participantId === gr.participantId) || (gr.teamId && r.teamId === gr.teamId))
+    );
+
+    let resultStatus: ResultStatus;
+    switch (score.status) {
+      case JudgeScoreStatus.ABSENT: resultStatus = ResultStatus.ABSENT; break;
+      case JudgeScoreStatus.DISQUALIFIED: resultStatus = ResultStatus.DISQUALIFIED; break;
+      default: resultStatus = ResultStatus.PARTICIPATED; break;
+    }
+
+    if (existingResult) {
+      // Update existing result
+      existingResult.judge1Mark = j1?.mark || 0;
+      existingResult.judge2Mark = j2?.mark || 0;
+      existingResult.totalMark = score.totalMark;
+      existingResult.rank = score.rank;
+      existingResult.status = resultStatus;
+      existingResult.remarks = score.remarks;
+      existingResult.updatedBy = user.id;
+      existingResult.updatedAt = new Date().toISOString();
+      existingResult.publishedStatus = true;
+    } else {
+      // Create new result
+      const result: Result = {
+        id: `res_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        categoryId: sheet.categoryId,
+        competitionId: sheet.competitionId,
+        participantId: gr.participantId,
+        teamId: gr.teamId,
+        judge1Mark: j1?.mark || 0,
+        judge2Mark: j2?.mark || 0,
+        totalMark: score.totalMark,
+        rank: score.rank,
+        status: resultStatus,
+        remarks: score.remarks,
+        publishedStatus: true,
+        createdBy: user.id,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      db.results.push(result);
+      resultsCreated++;
+    }
+  }
+
+  sheet.publishedToResults = true;
+
+  await dbClient.logAudit(user.id, user.username, user.role, `Publish ${resultsCreated} Results from Judgment Sheet`, 'JudgmentSheet', sheetId);
+  await dbClient.save();
+
+  res.json({ message: `Published ${resultsCreated} results to the Result module` });
 });
