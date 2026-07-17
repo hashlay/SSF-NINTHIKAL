@@ -34,6 +34,10 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
         fetch('/api/teams', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
+      if (!resRes.ok || !partRes.ok || !teamRes.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
       const [resData, catData, unitData, compData, partData, teamData] = await Promise.all([
         resRes.json(),
         catRes.json(),

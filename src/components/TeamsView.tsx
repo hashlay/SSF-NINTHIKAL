@@ -46,6 +46,11 @@ export default function TeamsView({ user, token }: TeamsViewProps) {
         })
       ]);
 
+      if (!tRes.ok) {
+        const err = await tRes.json();
+        throw new Error(err.error || 'Failed to fetch teams');
+      }
+
       const [tData, cData, uData, compData, pData] = await Promise.all([tRes.json(), cRes.json(), uRes.json(), compRes.json(), pRes.json()]);
 
       setTeams(tData);

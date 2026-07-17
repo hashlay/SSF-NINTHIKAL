@@ -55,6 +55,11 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
         fetch('/api/competitions')
       ]);
 
+      if (!pRes.ok) {
+        const errorData = await pRes.json();
+        throw new Error(errorData.error || 'Failed to fetch participants');
+      }
+
       const [pData, cData, uData, compData] = await Promise.all([pRes.json(), cRes.json(), uRes.json(), compRes.json()]);
 
       setParticipants(pData);

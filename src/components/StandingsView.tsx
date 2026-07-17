@@ -23,6 +23,9 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch standings');
+      }
       setStandings(data);
     } catch (e) {
       console.error(e);

@@ -115,6 +115,9 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
         fetch('/api/units'),
         fetch('/api/participants', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
+      if (!pRes.ok) {
+        throw new Error('Failed to fetch data');
+      }
       const [cData, compData, uData, pData] = await Promise.all([cRes.json(), compRes.json(), uRes.json(), pRes.json()]);
 
       setCategories(cData);
@@ -152,6 +155,7 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const resData = await resRes.json();
+        if (!resRes.ok) throw new Error('Failed to fetch results');
         setSavedResults(resData);
 
         // Fetch candidates (participants or teams)
@@ -162,6 +166,7 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const partData = await partRes.json();
+          if (!partRes.ok) throw new Error('Failed to fetch participants');
           setCandidatesList(partData);
         } else {
           // Fetch group teams registered in this competition
@@ -169,6 +174,7 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const teamData = await teamRes.json();
+          if (!teamRes.ok) throw new Error('Failed to fetch teams');
           setCandidatesList(teamData);
         }
       } catch (e) {

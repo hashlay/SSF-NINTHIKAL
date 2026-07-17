@@ -73,6 +73,9 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch report data');
+      }
       setPreviewData(data);
     } catch (e) {
       console.error(e);

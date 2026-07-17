@@ -35,6 +35,10 @@ export default function RegisteredEventsView({ user, token }: RegisteredEventsVi
         fetch('/api/teams', { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
+      if (!pRes.ok || !regRes.ok || !teamsRes.ok) {
+        throw new Error('Failed to fetch data');
+      }
+
       const [pData, cData, uData, compData, regData, teamsData] = await Promise.all([
         pRes.json(),
         cRes.json(),

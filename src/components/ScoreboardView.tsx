@@ -35,6 +35,11 @@ export default function ScoreboardView({ user, token }: ScoreboardViewProps) {
         fetch('/api/units')
       ]);
 
+      if (!sbRes.ok) {
+        const err = await sbRes.json();
+        throw new Error(err.error || 'Failed to fetch scoreboard');
+      }
+
       const [sbData, cData, uData] = await Promise.all([sbRes.json(), sbRes.ok ? cRes.json() : [], sbRes.ok ? uRes.json() : []]);
 
       setScoreboard(sbData);
