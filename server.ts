@@ -3,7 +3,6 @@ dotenv.config();
 
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes';
 
 const app = express();
@@ -36,21 +35,25 @@ app.use('/data/uploads', express.static(path.join(process.cwd(), 'data/uploads')
 if (!process.env.VERCEL) {
   if (process.env.NODE_ENV !== 'production') {
     // Development Mode
-    createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    }).then(vite => {
-      app.use(vite.middlewares);
-      console.log("Vite development server middleware mounted");
-      
-      app.listen(PORT, () => {
-        console.log(`=============================================================`);
-        console.log(`🚀 SSF Ninthikal Sector Sahityotsav Dev Server Running on port ${PORT}`);
-        console.log(`=============================================================`);
+    import('vite').then(({ createServer: createViteServer }) => {
+      createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      }).then(vite => {
+        app.use(vite.middlewares);
+        console.log("Vite development server middleware mounted");
+        
+        app.listen(PORT, () => {
+          console.log(`=============================================================`);
+          console.log(`🚀 SSF Ninthikal Sector Sahityotsav Dev Server Running on port ${PORT}`);
+          console.log(`=============================================================`);
+        });
+      }).catch(err => {
+        console.error("FATAL: Failed to start Vite Dev Server", err);
+        process.exit(1);
       });
     }).catch(err => {
-      console.error("FATAL: Failed to start Vite Dev Server", err);
-      process.exit(1);
+      console.error("Failed to dynamically import Vite", err);
     });
   } else {
     // Production Mode: Serve the static files from /dist
