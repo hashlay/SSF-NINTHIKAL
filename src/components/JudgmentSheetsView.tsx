@@ -39,6 +39,7 @@ export default function JudgmentSheetsView({ user, token }: JudgmentSheetsViewPr
   const [currentSheet, setCurrentSheet] = useState<any>(null);
   const [currentScores, setCurrentScores] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'dashboard' | 'generate' | 'enter' | 'print'>('dashboard');
+  const [printType, setPrintType] = useState<'blank' | 'filled'>('blank');
   
   // Marks entry state
   const [savingScores, setSavingScores] = useState(false);
@@ -244,98 +245,80 @@ export default function JudgmentSheetsView({ user, token }: JudgmentSheetsViewPr
   
   if (viewMode === 'print' && currentSheet) {
     return (
-      <div className="print-sheet bg-white p-8 max-w-[210mm] mx-auto" id="judgment-sheet-print">
-        {/* Print Header with Logos */}
-        <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-4 mb-2">
-            <img src="/logos/ssf-logo.png" alt="SSF" className="h-14 w-14 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <img src="/logos/sahityotsav-logo.png" alt="Sahityotsav" className="h-14 w-14 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+      <div className="print-sheet bg-white p-8 max-w-[210mm] mx-auto text-black" id="judgment-sheet-print">
+        {/* Print Header */}
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center mb-4">
+            <img src="/logos/sahityotsav-logo.png" alt="Sahityotsav" className="h-20 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           </div>
-          <h1 className="text-xl font-bold tracking-wide">Sahityotsav</h1>
-          <h2 className="text-sm font-semibold text-slate-600">Judgment Sheet</h2>
+          <h1 className="text-2xl font-normal text-slate-800">Sahityotsav</h1>
+          <h2 className="text-lg font-normal text-slate-600 mt-1">Judgement Sheet</h2>
         </div>
 
         {/* Details Row */}
-        <div className="flex justify-between items-start mb-4 text-sm border-b pb-3">
-          <div><strong>Category:</strong> {currentSheet.categoryName}</div>
-          <div className="text-center"><strong>Program:</strong> {currentSheet.competitionName}</div>
-          <div className="text-right"><strong>Individual:</strong> {currentSheet.participationType === 'individual' ? 'Yes' : 'No (Group)'}</div>
-        </div>
-        
-        <div className="mb-4 text-sm flex justify-between">
-          <div><strong>Max Marks:</strong> {currentSheet.maxMarks}</div>
-          <div><strong>Status:</strong> {STATUS_LABELS[currentSheet.status]}</div>
+        <div className="flex justify-between items-start mb-6 text-[15px]">
+          <div className="flex-1 font-bold">Category: {currentSheet.categoryName}</div>
+          <div className="flex-1 text-center font-bold px-2 whitespace-pre-wrap">Program: {currentSheet.competitionName}</div>
+          <div className="flex-1 text-right font-bold">Individual: {currentSheet.participationType === 'individual' ? 'Yes' : 'No'}</div>
         </div>
 
-        {/* Table - Anonymous! No chest number or names on print view unless finished */}
-        <table className="w-full text-sm border-collapse border border-slate-400">
+        {/* Table */}
+        <table className="w-full text-[15px] border-collapse border border-black table-fixed">
           <thead>
-            <tr className="bg-slate-100">
-              <th className="border border-slate-400 px-3 py-2 text-center font-semibold w-24">Code Letter</th>
-              {[...Array(currentSheet.numJudges)].map((_, i) => (
-                <th key={`j${i}`} className="border border-slate-400 px-3 py-2 text-center font-semibold w-20">Judge {i+1}</th>
-              ))}
-              <th className="border border-slate-400 px-3 py-2 text-center font-semibold w-24">Total</th>
-              {currentSheet.status === JudgmentSheetStatus.LOCKED && !isJudge && (
-                <th className="border border-slate-400 px-3 py-2 text-center font-semibold w-16">Rank</th>
-              )}
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold">Remarks</th>
+            <tr>
+              <th className="border border-black px-4 py-3 text-center font-bold w-24 align-middle" rowSpan={2}>Code Letter</th>
+              <th className="border border-black px-4 py-2 text-center font-bold align-middle" colSpan={5}>Mark</th>
+              <th className="border border-black px-4 py-3 text-center font-bold w-24 align-middle" rowSpan={2}>Total</th>
+              <th className="border border-black px-4 py-3 text-center font-bold w-48 align-middle" rowSpan={2}>Comments</th>
+            </tr>
+            <tr>
+              <th className="border border-black h-4 w-10"></th>
+              <th className="border border-black h-4 w-10"></th>
+              <th className="border border-black h-4 w-10"></th>
+              <th className="border border-black h-4 w-10"></th>
+              <th className="border border-black h-4 w-10"></th>
             </tr>
           </thead>
           <tbody>
             {currentScores.map((s: any) => (
               <tr key={s.id}>
-                <td className="border border-slate-400 px-3 py-2 text-center font-bold text-lg">{s.codeLetter}</td>
+                <td className="border border-black px-3 py-6 text-center font-bold">{s.codeLetter}</td>
                 
-                {[...Array(currentSheet.numJudges)].map((_, i) => {
+                {[...Array(5)].map((_, i) => {
                   const jm = s.judgeScores.find((x: any) => x.judgeNumber === i + 1);
                   return (
-                    <td key={`v${i}`} className="border border-slate-400 px-3 py-3 text-center text-lg">
-                      {s.status !== JudgeScoreStatus.PARTICIPATED ? '' : (jm?.mark || '')}
+                    <td key={`v${i}`} className="border border-black px-1 py-6 text-center">
+                      {(printType === 'filled' && s.status === JudgeScoreStatus.PARTICIPATED && jm) ? jm.mark : ''}
                     </td>
                   );
                 })}
                 
-                <td className="border border-slate-400 px-3 py-2 text-center font-bold bg-slate-50">
-                  {s.status !== JudgeScoreStatus.PARTICIPATED ? <span className="text-xs uppercase">{s.status}</span> : s.totalMark || ''}
+                <td className="border border-black px-3 py-6 text-center">
+                  {(printType === 'filled' && s.status === JudgeScoreStatus.PARTICIPATED) ? (s.totalMark || '') : ''}
                 </td>
                 
-                {currentSheet.status === JudgmentSheetStatus.LOCKED && !isJudge && (
-                  <td className="border border-slate-400 px-3 py-2 text-center font-bold text-lg text-blue-700">
-                    {s.rank || ''}
-                  </td>
-                )}
-                
-                <td className="border border-slate-400 px-3 py-2 text-xs">{s.remarks || ''}</td>
+                <td className="border border-black px-3 py-6 text-left">
+                  {(printType === 'filled') ? (s.remarks || '') : ''}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
 
         {/* Footer */}
-        <div className="flex justify-between items-end mt-16 pt-4 border-t border-slate-300">
-          {[...Array(currentSheet.numJudges)].map((_, i) => (
-            <div key={`sig${i}`} className="text-center">
-              <div className="w-40 border-b border-slate-400 mb-2"></div>
-              <div className="text-xs">Judge {i+1} Name & Signature</div>
-            </div>
-          ))}
-          {!isJudge && (
-            <div className="text-center">
-              <div className="w-40 border-b border-slate-400 mb-2"></div>
-              <div className="text-xs">Result Manager Signature</div>
-            </div>
-          )}
+        <div className="flex flex-col items-start mt-16 text-[15px] font-bold">
+          <div className="mb-8">Judge Name</div>
+          <div>Signature</div>
         </div>
 
-        <div className="mt-8 text-xs text-slate-400 flex justify-between">
-          <div>Copyright © 2025-2026 Qehix Solutions. All rights reserved.</div>
+        <div className="mt-16 text-[11px] text-black flex justify-between">
+          <div>Copyright © 2025-2026 Qebix Solutions. All rights reserved.</div>
           <div>Version 4.0.0</div>
         </div>
 
-        <div className="mt-6 print:hidden">
+        <div className="mt-6 print:hidden no-print">
           <button onClick={() => setViewMode('enter')} className="px-4 py-2 bg-slate-600 text-white rounded-lg text-sm mr-2">← Back to Editor</button>
-          <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">🖨 Print Sheet</button>
+          <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">🖨 Print {printType === 'blank' ? 'Blank' : 'Filled'} Sheet</button>
         </div>
       </div>
     );
@@ -532,9 +515,15 @@ export default function JudgmentSheetsView({ user, token }: JudgmentSheetsViewPr
                 {STATUS_LABELS[currentSheet.status]}
               </span>
               
-              <button onClick={() => setViewMode('print')} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium flex items-center gap-1 transition">
-                <Printer className="h-4 w-4" /> Print Form
-              </button>
+              <div className="relative group inline-block">
+                <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium flex items-center gap-1 transition">
+                  <Printer className="h-4 w-4" /> Print Form <ChevronDown className="h-3 w-3" />
+                </button>
+                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 flex flex-col overflow-hidden">
+                  <button onClick={() => { setPrintType('blank'); setViewMode('print'); }} className="px-4 py-2 text-left text-sm hover:bg-slate-50 transition">Print Blank Sheet</button>
+                  <button onClick={() => { setPrintType('filled'); setViewMode('print'); }} className="px-4 py-2 text-left text-sm hover:bg-slate-50 transition border-t border-slate-100">Print Filled Sheet</button>
+                </div>
+              </div>
               
               {canEditScores && currentSheet.status !== JudgmentSheetStatus.LOCKED && (
                 <button onClick={handleSaveScores} disabled={savingScores} className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex items-center gap-1 transition">

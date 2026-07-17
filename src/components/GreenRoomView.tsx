@@ -166,33 +166,32 @@ export default function GreenRoomView({ user, token }: GreenRoomViewProps) {
   // Print mode: Green Room Sheet
   if (printMode && selectedComp && competitionAssignments.length > 0) {
     return (
-      <div className="print-sheet bg-white p-8 max-w-[210mm] mx-auto" id="green-room-print">
-        {/* Print Header with Logos */}
-        <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-4 mb-2">
-            <img src="/logos/ssf-logo.png" alt="SSF" className="h-14 w-14 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-            <img src="/logos/sahityotsav-logo.png" alt="Sahityotsav" className="h-14 w-14 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+      <div className="print-sheet bg-white p-8 max-w-[210mm] mx-auto text-black" id="green-room-print">
+        {/* Print Header */}
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center mb-4">
+            <img src="/logos/sahityotsav-logo.png" alt="Sahityotsav" className="h-20 w-auto object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           </div>
-          <h1 className="text-xl font-bold tracking-wide">Sahityotsav</h1>
-          <h2 className="text-sm font-semibold text-slate-600">Green Room Sheet</h2>
+          <h1 className="text-2xl font-normal text-slate-800">Sahityotsav</h1>
+          <h2 className="text-lg font-normal text-slate-600 mt-1">Green Room Sheet</h2>
         </div>
 
         {/* Details Row */}
-        <div className="flex justify-between items-start mb-4 text-sm border-b pb-3">
-          <div><strong>Category:</strong> {selectedCat?.name || ''}</div>
-          <div className="text-center"><strong>Program:</strong> {selectedComp.name}</div>
-          <div className="text-right"><strong>Individual:</strong> {selectedComp.participationType === 'individual' ? 'Yes' : 'No (Group)'}</div>
+        <div className="flex justify-between items-start mb-6 text-[15px]">
+          <div className="flex-1 font-bold">Category: {selectedCat?.name || ''}</div>
+          <div className="flex-1 text-center font-bold px-2 whitespace-pre-wrap">Program: {selectedComp.name}</div>
+          <div className="flex-1 text-right font-bold">Individual: {selectedComp.participationType === 'individual' ? 'Yes' : 'No'}</div>
         </div>
 
         {/* Table */}
-        <table className="w-full text-sm border-collapse border border-slate-400">
+        <table className="w-full text-[15px] border-collapse border border-black">
           <thead>
-            <tr className="bg-slate-100">
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold w-20">Code Letter</th>
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold w-20">Chest #</th>
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold">Name</th>
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold w-28">Team</th>
-              <th className="border border-slate-400 px-3 py-2 text-left font-semibold w-20">Sign</th>
+            <tr>
+              <th className="border border-black px-4 py-3 text-left font-bold w-28">Code Letter</th>
+              <th className="border border-black px-4 py-3 text-left font-bold w-24">Chest #</th>
+              <th className="border border-black px-4 py-3 text-left font-bold">Name</th>
+              <th className="border border-black px-4 py-3 text-left font-bold w-40">Team</th>
+              <th className="border border-black px-4 py-3 text-left font-bold w-24">Sign</th>
             </tr>
           </thead>
           <tbody>
@@ -200,30 +199,30 @@ export default function GreenRoomView({ user, token }: GreenRoomViewProps) {
               .sort((a: any, b: any) => a.codeLetter.localeCompare(b.codeLetter))
               .map((a: any) => (
                 <tr key={a.id}>
-                  <td className="border border-slate-400 px-3 py-2 font-bold">{a.codeLetter}</td>
-                  <td className="border border-slate-400 px-3 py-2 font-mono">{a.chestNumber || '—'}</td>
-                  <td className="border border-slate-400 px-3 py-2">{a.participantName}</td>
-                  <td className="border border-slate-400 px-3 py-2">{a.unitName}</td>
-                  <td className="border border-slate-400 px-3 py-2"></td>
+                  <td className="border border-black px-4 py-4">{a.codeLetter}</td>
+                  <td className="border border-black px-4 py-4">{a.chestNumber || ''}</td>
+                  <td className="border border-black px-4 py-4">{a.participantName}</td>
+                  <td className="border border-black px-4 py-4">{a.unitName}</td>
+                  <td className="border border-black px-4 py-4"></td>
                 </tr>
               ))
             }
           </tbody>
         </table>
 
-        {/* Footer */}
-        <div className="flex justify-between items-start mt-6 text-xs">
-          <div><strong>Result Entered:</strong> Yes / No</div>
-          <div><strong>Result Announced:</strong> Yes / No</div>
-          <div><strong>Prize Distributed:</strong> Yes / No</div>
+        {/* Footer Status */}
+        <div className="flex justify-between items-start mt-6 text-[13px] font-bold">
+          <div>Result Entered: Yes / No</div>
+          <div>Result Announced: Yes / No</div>
+          <div>Prize Distributed: Yes / No</div>
         </div>
 
-        <div className="mt-8 text-xs text-slate-400 flex justify-between">
-          <div>Copyright © 2025-2026 Qehix Solutions. All rights reserved.</div>
+        <div className="mt-16 text-[11px] text-black flex justify-between">
+          <div>Copyright © 2025-2026 Qebix Solutions. All rights reserved.</div>
           <div>Version 4.0.0</div>
         </div>
 
-        <div className="mt-6 print:hidden">
+        <div className="mt-6 print:hidden no-print">
           <button onClick={() => setPrintMode(false)} className="px-4 py-2 bg-slate-600 text-white rounded-lg text-sm mr-2">← Back</button>
           <button onClick={() => window.print()} className="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm">🖨 Print Sheet</button>
         </div>
