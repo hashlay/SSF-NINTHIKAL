@@ -2641,17 +2641,7 @@ apiRouter.post('/judgment-sheets/:id/calculate', authenticate, requireRole([User
   res.json({ message: `Published ${resultsCreated} results to the Result module` });
 });
 
-// TEMPORARY ADD UNIT ENDPOINT
-apiRouter.get('/add-karimbila-unit', async (req, res) => {
-  if (req.query.token !== 'add_kar_2026') return res.status(403).json({error: 'Unauthorized'});
-  const db = dbClient.get();
-  if (!db.units.find(u => u.id === 'unit_karimbila')) {
-    db.units.push({ id: 'unit_karimbila', name: 'Karimbila', code: 'KAR', active: true });
-    await dbClient.save();
-    return res.json({success: true, message: 'Added Karimbila unit to live database.'});
-  }
-  return res.json({success: true, message: 'Karimbila already exists in live database.'});
-});
+
 
 
 
