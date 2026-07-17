@@ -402,6 +402,20 @@ export const dbClient = {
     return connectToMongo();
   },
 
+  forceSync: async () => {
+    if (isMongoConnected && mongoCollection) {
+      try {
+        const existingState = await mongoCollection.findOne({ _id: 'global_state' as any });
+        if (existingState) {
+          const { _id, ...restOfState } = existingState;
+          db = restOfState as any;
+        }
+      } catch (e) {
+        console.error("Force sync failed", e);
+      }
+    }
+  },
+
   get: () => {
     ensureDbExists();
     return db;

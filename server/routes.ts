@@ -58,13 +58,25 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 
   const tokenHash = hashToken(token);
-  const sessionIndex = db.sessions.findIndex(s => s.sessionTokenHash === tokenHash && !s.revokedAt);
+  let sessionIndex = db.sessions.findIndex(s => s.sessionTokenHash === tokenHash && !s.revokedAt);
 
   if (sessionIndex === -1) {
-    return res.status(401).json({ error: 'Session invalid or expired.' });
+    // In Serverless environments, another Lambda might have generated the token.
+    // Force a fresh sync from MongoDB to guarantee we have the latest sessions.
+    await dbClient.forceSync();
+    
+    // Re-assign db reference since forceSync might have replaced it
+    const latestDb = dbClient.get();
+    sessionIndex = latestDb.sessions.findIndex(s => s.sessionTokenHash === tokenHash && !s.revokedAt);
+    
+    if (sessionIndex === -1) {
+      return res.status(401).json({ error: 'Session invalid or expired.' });
+    }
   }
 
-  const session = db.sessions[sessionIndex];
+  // Use latest db
+  const latestDb = dbClient.get();
+  const session = latestDb.sessions[sessionIndex];
   
   // Check if session has expired
   if (new Date(session.expiresAt) < new Date()) {
@@ -74,7 +86,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   }
 
   // Find user
-  const user = db.users.find(u => u.id === session.userId);
+  const user = latestDb.users.find(u => u.id === session.userId);
   if (!user || !user.active) {
     return res.status(401).json({ error: 'User account is deactivated or deleted.' });
   }
