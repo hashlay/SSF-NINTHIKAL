@@ -218,8 +218,8 @@ export default function GreenRoomView({ user, token }: GreenRoomViewProps) {
         </div>
 
         <div className="mt-16 text-[11px] text-black flex justify-between">
-          <div>Copyright © 2025-2026 Qebix Solutions. All rights reserved.</div>
-          <div>Version 4.0.0</div>
+          <div>Copyright © 2025-2026 SSF Ninthikal Sector. All rights reserved.</div>
+          <div></div>
         </div>
 
         <div className="mt-6 print:hidden no-print">
