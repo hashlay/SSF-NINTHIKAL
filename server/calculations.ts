@@ -1,8 +1,8 @@
-import { dbClient } from './db';
+import { dbClient } from './db.js';
 import { 
   Participant, Result, Team, Unit, Competition, StageType, 
   ResultStatus, ParticipationType 
-} from '../src/types';
+} from '../src/types.js';
 
 /**
  * Service to centralize all scoreboard and standings calculations.

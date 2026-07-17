@@ -9,7 +9,7 @@ import {
   Unit, Category, Competition, Participant, Team, 
   Result, EventSettings, EducationStatus, ParticipationType, 
   StageType, Gender, ResultStatus
-} from '../src/types';
+} from '../src/types.js';
 import { MongoClient, Collection } from 'mongodb';
 
 const DB_DIR = path.join(process.cwd(), 'data');
@@ -104,7 +104,11 @@ function ensureDbExists() {
   if (db) return; // Prevent reloading from disk if already in memory
 
   if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+    try {
+      fs.mkdirSync(DB_DIR, { recursive: true });
+    } catch (e) {
+      console.warn("Could not create DB_DIR (expected on read-only environments like Vercel).");
+    }
   }
 
   if (fs.existsSync(DB_FILE)) {

@@ -3,7 +3,7 @@ dotenv.config();
 
 import express from 'express';
 import path from 'path';
-import { apiRouter } from './server/routes';
+import { apiRouter } from './server/routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;

@@ -1,14 +1,14 @@
 import express, { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { dbClient } from './db';
-import { CalculationService } from './calculations';
+import { dbClient } from './db.js';
+import { CalculationService } from './calculations.js';
 import { 
   UserRole, User, Session, LoginAudit, AuditLog, 
   Unit, Category, Competition, Participant, Team, 
   Registration, Result, EventSettings, EducationStatus, ParticipationType, 
   StageType, Gender, ResultStatus 
-} from '../src/types';
+} from '../src/types.js';
 
 export const apiRouter = express.Router();
 
