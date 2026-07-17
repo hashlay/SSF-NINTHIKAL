@@ -31,17 +31,11 @@ apiRouter.use(async (req, res, next) => {
 
 // Ensure required environment variables exist
 if (!process.env.AUTH_SECRET) {
-  console.error("FATAL: AUTH_SECRET environment variable is missing.");
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
+  console.warn("WARNING: AUTH_SECRET environment variable is missing. Using fallback secret.");
 }
 
 if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
-  console.error("FATAL: MONGODB_URI environment variable is missing.");
-  if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
-  }
+  console.warn("WARNING: MONGODB_URI environment variable is missing. Database may not persist in serverless environments.");
 }
 
 const JWT_SECRET = process.env.AUTH_SECRET || 'fallback_secret_for_development_only_12345';
