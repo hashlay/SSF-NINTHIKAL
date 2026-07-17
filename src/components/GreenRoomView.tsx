@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Theater, RefreshCw, Printer, Search, ChevronDown,
   CheckCircle, Clock, AlertTriangle, Plus, Shuffle, Eye
 } from 'lucide-react';
@@ -218,7 +218,7 @@ export default function GreenRoomView({ user, token }: GreenRoomViewProps) {
         </div>
 
         <div className="mt-16 text-[11px] text-black flex justify-between">
-          <div>Copyright © 2025-2026 SSF Ninthikal Sector. All rights reserved.</div>
+          <div>Copyright © 2026-2027 SSF Ninthikal Sector. All rights reserved.</div>
           <div></div>
         </div>
 
