@@ -2640,3 +2640,31 @@ apiRouter.post('/judgment-sheets/:id/calculate', authenticate, requireRole([User
 
   res.json({ message: `Published ${resultsCreated} results to the Result module` });
 });
+
+// TEMPORARY DB CLEAR ENDPOINT
+apiRouter.get('/dangerous-clear-data', async (req, res) => {
+  if (req.query.token !== 'clear_now_2026') {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+
+  const db = dbClient.get();
+  db.participants = [];
+  db.chestNumbers = [];
+  db.greenRoomAssignments = [];
+  db.judgmentSheets = [];
+  db.judgeScores = [];
+  db.registrations = [];
+  db.teams = [];
+  db.results = [];
+  db.counters = [
+    { id: 'counter_sub_junior', categoryId: 'cat_sub_junior', currentValue: 999 },
+    { id: 'counter_junior', categoryId: 'cat_junior', currentValue: 1999 },
+    { id: 'counter_senior', categoryId: 'cat_senior', currentValue: 2999 },
+    { id: 'counter_campus_junior', categoryId: 'cat_campus_junior', currentValue: 3999 },
+    { id: 'counter_campus_senior', categoryId: 'cat_campus_senior', currentValue: 4999 },
+    { id: 'counter_general', categoryId: 'cat_general', currentValue: 5999 },
+    { id: 'counter_campus_general', categoryId: 'cat_campus_general', currentValue: 6999 }
+  ];
+  await dbClient.save();
+  res.json({ success: true, message: 'Production data cleared completely.' });
+});
