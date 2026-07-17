@@ -21,6 +21,7 @@ export const apiRouter = express.Router();
 apiRouter.use(async (req, res, next) => {
   try {
     await dbClient.waitForSync();
+    await dbClient.forceSync(); // Ensure latest state is fetched on every request
     next();
   } catch (e) {
     console.error("Database connection failed:", e);
