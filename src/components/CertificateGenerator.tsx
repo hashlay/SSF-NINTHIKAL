@@ -20,8 +20,8 @@ export default function CertificateGenerator({
   // Customization state
   const [nameX, setNameX] = useState(-140);
   const [nameY, setNameY] = useState(490);
-  const [compX, setCompX] = useState(-50);
-  const [compY, setCompY] = useState(690);
+  const [compX, setCompX] = useState(120);
+  const [compY, setCompY] = useState(615);
   const [nameSize, setNameSize] = useState(44);
   const [compSize, setCompSize] = useState(32);
   
