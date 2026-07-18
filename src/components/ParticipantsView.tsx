@@ -286,9 +286,9 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
       </div>
 
       {/* Participants List */}
-      <div className="no-print">
+      <div>
         {/* Mobile-Friendly Grid List: compact, touch-optimized cards, hidden on medium screens and up */}
-        <div className="block md:hidden space-y-3">
+        <div className="block md:hidden space-y-3 print:hidden">
           {participants.length > 0 ? (
             participants.map((p) => {
               const unit = units.find(u => u.id === p.unitId);
@@ -366,7 +366,7 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
         </div>
 
         {/* Desktop Table View */}
-        <div className="hidden md:block bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div className="hidden md:block print:block bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print:shadow-none print:border-none">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50 font-mono text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -376,7 +376,7 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
                   <th className="px-6 py-4 text-left">Unit</th>
                   <th className="px-6 py-4 text-left">Category</th>
                   <th className="px-6 py-4 text-left">DOB</th>
-                  <th className="px-6 py-4 text-center">Actions</th>
+                  <th className="px-6 py-4 text-center print:hidden">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100 text-sm">
@@ -398,7 +398,7 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
                           </span>
                         </td>
                         <td className="px-6 py-4 font-mono text-xs text-slate-500 whitespace-nowrap">{p.dob}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-6 py-4 whitespace-nowrap text-center print:hidden">
                           <div className="flex items-center justify-center gap-1.5">
                             <button 
                               onClick={() => viewProfile(p)}

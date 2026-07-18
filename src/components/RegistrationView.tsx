@@ -219,6 +219,11 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
       return;
     }
 
+    if (forceSubmit) {
+      setStep(4);
+      return;
+    }
+
     try {
       const res = await fetch('/api/participants/check-duplicate', {
         method: 'POST',
@@ -788,6 +793,7 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
               <button
                 onClick={() => {
                   setDuplicateWarning(null);
+                  setForceSubmit(true);
                   setStep(4); // proceed regardless
                 }}
                 className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold shadow-md shadow-amber-500/10"
