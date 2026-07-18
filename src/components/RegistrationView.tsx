@@ -219,31 +219,7 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
       return;
     }
 
-    if (forceSubmit) {
-      setStep(4);
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/participants/check-duplicate', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ fullName, dob, unitId: selectedUnitId })
-      });
-      const data = await res.json();
-      
-      if (data.duplicate) {
-        setDuplicateWarning(data.matches[0]);
-      } else {
-        setStep(4);
-      }
-    } catch (e) {
-      console.error(e);
-      setStep(4);
-    }
+    setStep(4);
   };
 
   const handleFinalSubmit = async () => {
@@ -746,61 +722,6 @@ export default function RegistrationView({ user, token }: RegistrationViewProps)
               {submitting ? 'Registering...' : 'Save & Register Candidate'}
               <ClipboardCheck className="h-4.5 w-4.5 ml-1.5" />
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Duplicate Warning Popup Modal */}
-      {duplicateWarning && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 animate-scale-up space-y-4">
-            <div className="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-2xl border border-amber-200">
-              <AlertTriangle className="h-6 w-6 shrink-0 animate-bounce" />
-              <div>
-                <h4 className="font-display font-bold text-sm">Potential Duplicate Warning</h4>
-                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                  A participant with the exact same name, DOB, and unit is already registered!
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-xl border text-xs space-y-2 font-mono">
-              <div>
-                <span className="text-slate-400 block font-semibold">Existing Participant Code:</span>
-                <span className="font-bold text-slate-800">{duplicateWarning.profilePhoto}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-semibold">Full Name:</span>
-                <span className="font-bold text-slate-800">{duplicateWarning.fullName}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-semibold">Date of Birth:</span>
-                <span className="font-bold text-slate-800">{duplicateWarning.dob}</span>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              If this is indeed a duplicate, cancel and check existing records. If you are authorized to register them anyway, proceed.
-            </p>
-
-            <div className="flex gap-3 justify-end pt-2">
-              <button
-                onClick={() => setDuplicateWarning(null)}
-                className="px-4 py-2 border rounded-xl text-xs font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100"
-              >
-                Cancel Registration
-              </button>
-              <button
-                onClick={() => {
-                  setDuplicateWarning(null);
-                  setForceSubmit(true);
-                  setStep(4); // proceed regardless
-                }}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold shadow-md shadow-amber-500/10"
-              >
-                Proceed (Override)
-              </button>
-            </div>
           </div>
         </div>
       )}
