@@ -2059,8 +2059,9 @@ apiRouter.get('/green-room/competition/:competitionId', authenticate, async (req
       
       if (t && t.memberIds && t.memberIds.length > 0) {
         const memberChestNumbers = t.memberIds.map(mid => {
+          const cn = (db.chestNumbers || []).find(c => c.participantId === mid && !c.deletedAt);
           const p = db.participants.find(part => part.id === mid);
-          return p?.chestNumber;
+          return cn ? cn.chestNumber : p?.profilePhoto;
         }).filter(Boolean);
         if (memberChestNumbers.length > 0) {
           chestNumber = memberChestNumbers.join(', ');
@@ -2440,8 +2441,9 @@ apiRouter.get('/judgment-sheets/:id', authenticate, async (req, res) => {
           
           if (t && t.memberIds && t.memberIds.length > 0) {
             const memberChestNumbers = t.memberIds.map(mid => {
+              const cn = (db.chestNumbers || []).find(c => c.participantId === mid && !c.deletedAt);
               const p = db.participants.find(part => part.id === mid);
-              return p?.chestNumber;
+              return cn ? cn.chestNumber : p?.profilePhoto;
             }).filter(Boolean);
             if (memberChestNumbers.length > 0) {
               base.chestNumber = memberChestNumbers.join(', ');
