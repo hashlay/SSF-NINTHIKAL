@@ -260,7 +260,7 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
       </div>
 
       {/* 3. Printable sheet & layout */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 sm:p-10 relative overflow-hidden print-sheet">
+      <div className="bg-white rounded-3xl border border-slate-200/80 shadow-md p-6 sm:p-10 relative overflow-hidden print-sheet print:overflow-visible">
         
         {/* Printable header */}
         <div className="flex flex-col items-center text-center pb-8 border-b border-dashed border-slate-300">
@@ -280,7 +280,7 @@ export default function ReportsView({ user, token }: ReportsViewProps) {
         {previewLoading ? (
           <div className="py-24 text-center text-xs font-mono text-slate-400 animate-pulse">Querying report sheet entries...</div>
         ) : (
-          <div className="mt-8 overflow-x-auto">
+          <div className="mt-8 overflow-x-auto print:overflow-visible">
             {previewData.length > 0 ? (
               <table className="min-w-full divide-y divide-slate-200 text-xs print-table">
                 

@@ -238,15 +238,17 @@ export default function ChestNumbersView({ user, token }: ChestNumbersViewProps)
         </div>
       </div>
 
-      {/* Print Header */}
-      <div className="hidden print:block text-center mb-4">
+      {/* Print Wrapper */}
+      <div className="print-sheet print:overflow-visible">
+        {/* Print Header */}
+        <div className="hidden print:block text-center mb-4">
         <h1 className="text-xl font-bold">Sahityotsav — Chest Number List</h1>
         <p className="text-sm text-slate-600">Ninthikal Sector | Generated: {new Date().toLocaleDateString()}</p>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:shadow-none print:border">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:shadow-none print:border print:overflow-visible">
+        <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
@@ -307,6 +309,7 @@ export default function ChestNumbersView({ user, token }: ChestNumbersViewProps)
         <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 print:hidden">
           Showing {filtered.length} of {chestNumbers.length} chest numbers
         </div>
+      </div>
       </div>
     </div>
   );
