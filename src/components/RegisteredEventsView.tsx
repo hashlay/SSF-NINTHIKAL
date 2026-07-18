@@ -203,7 +203,7 @@ export default function RegisteredEventsView({ user, token }: RegisteredEventsVi
           <p className="text-xs text-slate-400">Compiling registration lists...</p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-8 print-sheet print:overflow-visible">
           
           {/* Print Only Header */}
           <div className="hidden print:block text-center space-y-2 border-b-2 border-slate-900 pb-4 mb-6">
@@ -230,7 +230,7 @@ export default function RegisteredEventsView({ user, token }: RegisteredEventsVi
             const sortedComps = [...categoryComps].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0) || a.name.localeCompare(b.name));
 
             return (
-              <div key={category.id} className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden break-inside-avoid">
+              <div key={category.id} className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden print:overflow-visible print:shadow-none break-inside-avoid">
                 {/* Category Header */}
                 <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
                   <h3 className="font-display font-bold text-slate-800 text-sm uppercase tracking-wide">{category.name} Category</h3>
