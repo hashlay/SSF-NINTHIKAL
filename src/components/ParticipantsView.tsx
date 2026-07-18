@@ -366,8 +366,8 @@ export default function ParticipantsView({ user, token }: ParticipantsViewProps)
         </div>
 
         {/* Desktop Table View */}
-        <div className="hidden md:block print:block bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print:shadow-none print:border-none">
-          <div className="overflow-x-auto">
+        <div className="hidden md:block print:block print-sheet bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print:shadow-none print:border-none print:overflow-visible">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50 font-mono text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <tr>
