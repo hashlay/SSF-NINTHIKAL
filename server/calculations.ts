@@ -146,7 +146,8 @@ export const CalculationService = {
         individualMarks,
         groupMarks,
         overallMarks,
-        placements: rankPlacements
+        placements: rankPlacements,
+        chestNumber: participant.profilePhoto || 'N/A'
       };
     });
     

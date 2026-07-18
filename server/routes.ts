@@ -2101,10 +2101,10 @@ apiRouter.post('/green-room/generate', authenticate, requireRole([UserRole.SUPER
       if (!participant) continue;
       
       // Must have chest number
-      const cn = (db.chestNumbers || []).find((c: ChestNumber) => c.participantId === participant.id && !c.deletedAt);
-      if (!cn) continue;
+      const chestNumber = participant.profilePhoto;
+      if (!chestNumber) continue;
       
-      entries.push({ participantId: participant.id, chestNumber: cn.chestNumber });
+      entries.push({ participantId: participant.id, chestNumber: chestNumber as any });
     }
   } else {
     // Group: find teams for this competition
