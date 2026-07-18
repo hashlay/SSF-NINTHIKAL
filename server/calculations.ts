@@ -122,7 +122,14 @@ export const CalculationService = {
       }
       
       // Calculate sums
-      const individualMarks = filteredIndividualResults.reduce((sum, r) => sum + r.totalMark, 0);
+      const individualMarks = filteredIndividualResults.reduce((sum, r) => {
+        let normalizedMark = r.totalMark;
+        // If both judges have marks greater than 0, assume it's a 2-judge event out of 200, so take the average to make it out of 100
+        if (r.judge1Mark > 0 && r.judge2Mark > 0) {
+          normalizedMark = r.totalMark / 2;
+        }
+        return sum + normalizedMark;
+      }, 0);
       const groupMarks = filteredGroupResults.reduce((sum, r) => sum + r.totalMark, 0);
       const overallMarks = individualMarks; // Modified: Only include individual marks for Individual Scoreboard
       const totalEvents = filteredIndividualResults.length; // Modified: Only count individual events
