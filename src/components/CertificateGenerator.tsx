@@ -18,12 +18,12 @@ export default function CertificateGenerator({
   const [currentIndex, setCurrentIndex] = useState(0);
   
   // Customization state
-  const [nameX, setNameX] = useState(-140);
-  const [nameY, setNameY] = useState(490);
-  const [compX, setCompX] = useState(10);
-  const [compY, setCompY] = useState(575);
-  const [nameSize, setNameSize] = useState(44);
-  const [compSize, setCompSize] = useState(32);
+  const [nameX, setNameX] = useState(-90);
+  const [nameY, setNameY] = useState(485);
+  const [compX, setCompX] = useState(60);
+  const [compY, setCompY] = useState(540);
+  const [nameSize, setNameSize] = useState(40);
+  const [compSize, setCompSize] = useState(28);
   
   // Base on rank, pick default colors
   // 1st place has a red/burgundy theme. 2nd place has a dark blue/slate theme.
