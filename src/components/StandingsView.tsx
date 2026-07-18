@@ -167,7 +167,7 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
               <h4 className="font-display font-bold text-slate-800 text-base">Unit Standings Registry</h4>
             </div>
             <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
-              Sorted by Points (1st=5, 2nd=3, 3rd=1)
+              Sorted by Points (1st=20, 2nd=14, 3rd=7)
             </span>
           </div>
 
