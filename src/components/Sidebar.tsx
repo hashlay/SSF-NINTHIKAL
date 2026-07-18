@@ -3,7 +3,7 @@ import {
   LayoutDashboard, UserPlus, Users, Trophy, Award, 
   Settings, Users2, ShieldAlert, FileSpreadsheet, 
   LogOut, ClipboardList, BookOpen, Menu, X,
-  Hash, Theater, Scale
+  Hash, Theater, Scale, FileBadge
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import SSFLogo from './SSFLogo';
@@ -34,6 +34,7 @@ export default function Sidebar({
     { id: 'judgment-sheets', label: 'Judgment Sheets', icon: Scale, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.JUDGE, UserRole.RESULT_MANAGER] },
     { id: 'registered-events', label: 'Registered Events', icon: ClipboardList, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
     { id: 'announced-results', label: 'Announced Results', icon: Award, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.UNIT_TEAM_LEADER] },
+    { id: 'certificates', label: 'Certificates', icon: FileBadge, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
     { id: 'competitions', label: 'Competitions', icon: ClipboardList, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },
     { id: 'results', label: 'Result Entry', icon: Trophy, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM, UserRole.RESULT_MANAGER] },
     { id: 'scoreboard', label: 'Individual Scores', icon: Award, roles: [UserRole.SUPER_ADMIN, UserRole.SECTOR_TEAM] },

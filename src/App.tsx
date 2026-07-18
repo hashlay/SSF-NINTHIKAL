@@ -20,6 +20,7 @@ import UsersView from './components/UsersView';
 import SettingsView from './components/SettingsView';
 import RegisteredEventsView from './components/RegisteredEventsView';
 import AnnouncedResultsView from './components/AnnouncedResultsView';
+import CertificatesView from './components/CertificatesView';
 import ChestNumbersView from './components/ChestNumbersView';
 import GreenRoomView from './components/GreenRoomView';
 import JudgmentSheetsView from './components/JudgmentSheetsView';
@@ -185,6 +186,8 @@ export default function App() {
         return <RegisteredEventsView user={user} token={token} />;
       case 'announced-results':
         return <AnnouncedResultsView user={user} token={token} />;
+      case 'certificates':
+        return <CertificatesView user={user} token={token} />;
       case 'competitions':
         return <CompetitionsView user={user} token={token} />;
       case 'results':
