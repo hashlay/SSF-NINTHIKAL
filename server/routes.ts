@@ -2046,6 +2046,8 @@ apiRouter.get('/green-room/competition/:competitionId', authenticate, async (req
   const enriched = assignments.map((a: GreenRoomAssignment) => {
     let participantName = '';
     let unitName = '';
+    let chestNumber = a.chestNumber;
+
     if (a.participantId) {
       const p = db.participants.find(part => part.id === a.participantId);
       participantName = p?.fullName || 'Unknown';
@@ -2054,9 +2056,20 @@ apiRouter.get('/green-room/competition/:competitionId', authenticate, async (req
       const t = db.teams.find(team => team.id === a.teamId);
       participantName = t?.teamNumber || 'Unknown Team';
       unitName = db.units.find(u => u.id === t?.unitId)?.name || 'Unknown';
+      
+      if (t && t.memberIds && t.memberIds.length > 0) {
+        const memberChestNumbers = t.memberIds.map(mid => {
+          const p = db.participants.find(part => part.id === mid);
+          return p?.chestNumber;
+        }).filter(Boolean);
+        if (memberChestNumbers.length > 0) {
+          chestNumber = memberChestNumbers.join(', ');
+        }
+      }
     }
     return {
       ...a,
+      chestNumber,
       participantName,
       unitName
     };
@@ -2424,6 +2437,16 @@ apiRouter.get('/judgment-sheets/:id', authenticate, async (req, res) => {
           const t = db.teams.find(team => team.id === gr.teamId);
           base.participantName = t?.teamNumber;
           base.unitName = db.units.find(u => u.id === t?.unitId)?.name;
+          
+          if (t && t.memberIds && t.memberIds.length > 0) {
+            const memberChestNumbers = t.memberIds.map(mid => {
+              const p = db.participants.find(part => part.id === mid);
+              return p?.chestNumber;
+            }).filter(Boolean);
+            if (memberChestNumbers.length > 0) {
+              base.chestNumber = memberChestNumbers.join(', ');
+            }
+          }
         }
       }
     }
