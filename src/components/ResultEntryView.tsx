@@ -158,16 +158,29 @@ export default function ResultEntryView({ user, token }: ResultEntryViewProps) {
         if (!resRes.ok) throw new Error('Failed to fetch results');
         setSavedResults(resData);
 
-        // Fetch candidates (participants or teams)
         if (comp?.participationType === ParticipationType.INDIVIDUAL) {
           // Fetch participants registered in selected individual competition
-          // In our setup, participant's directory can be filtered by category. We can also filter on server or load all.
           const partRes = await fetch(`/api/participants?categoryId=${selectedCatId}`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const partData = await partRes.json();
           if (!partRes.ok) throw new Error('Failed to fetch participants');
-          setCandidatesList(partData);
+
+          // Fetch registrations to filter participants by selected competition
+          const regRes = await fetch('/api/registrations', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const regData = await regRes.json();
+          
+          if (!regRes.ok) throw new Error('Failed to fetch registrations');
+
+          // Filter participants to only those who registered for this specific competition
+          const filteredParticipants = partData.filter((p: any) => {
+            const pReg = regData.find((r: any) => r.participantId === p.id);
+            return pReg && pReg.selectedIndividualCompetitionIds && pReg.selectedIndividualCompetitionIds.includes(selectedCompId);
+          });
+
+          setCandidatesList(filteredParticipants);
         } else {
           // Fetch group teams registered in this competition
           const teamRes = await fetch(`/api/teams?competitionId=${selectedCompId}`, {
