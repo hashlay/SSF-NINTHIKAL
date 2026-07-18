@@ -261,8 +261,8 @@ export const CalculationService = {
       countPlacements(individualResults);
       countPlacements(groupResults);
       
-      // Calculate official points: 1st place = 5pts, 2nd = 3pts, 3rd = 1pt
-      const overallPoints = (firstPlaceCount * 5) + (secondPlaceCount * 3) + (thirdPlaceCount * 1);
+      // Calculate official points: 1st place = 20pts, 2nd = 14pts, 3rd = 7pts
+      const overallPoints = (firstPlaceCount * 20) + (secondPlaceCount * 14) + (thirdPlaceCount * 7);
       
       // Compute Category Breakdown
       const categoryBreakdown = db.categories.map(cat => {
@@ -275,9 +275,9 @@ export const CalculationService = {
         
         let points = 0;
         catResults.forEach(r => {
-          if (r.rank === 1) points += 5;
-          else if (r.rank === 2) points += 3;
-          else if (r.rank === 3) points += 1;
+          if (r.rank === 1) points += 20;
+          else if (r.rank === 2) points += 14;
+          else if (r.rank === 3) points += 7;
         });
         
         return {
