@@ -26,8 +26,8 @@ export default function CertificateGenerator({
   const [compSize, setCompSize] = useState(rank === 1 ? 25 : 25);
   
   // Base on rank, pick default colors
-  // 1st place has a red/burgundy theme. 2nd place has a dark blue/slate theme.
-  const defaultColor = rank === 1 ? '#cc0000' : '#30785a'; // Red for 1st, Green for 2nd
+  // 1st place has a red/burgundy theme. 2nd place uses black text.
+  const defaultColor = rank === 1 ? '#cc0000' : '#000000'; // Red for 1st, Black for 2nd
   
   const [nameColor, setNameColor] = useState(defaultColor);
   const [compColor, setCompColor] = useState(defaultColor);

@@ -5,6 +5,16 @@ import {
 } from '../src/types.js';
 
 /**
+ * Helper to normalize mark out of 100 if two judges gave marks.
+ */
+const getNormalizedMark = (r: Result): number => {
+  if (r.judge1Mark > 0 && r.judge2Mark > 0) {
+    return r.totalMark / 2;
+  }
+  return r.totalMark;
+};
+
+/**
  * Service to centralize all scoreboard and standings calculations.
  */
 export const CalculationService = {
@@ -122,15 +132,8 @@ export const CalculationService = {
       }
       
       // Calculate sums
-      const individualMarks = filteredIndividualResults.reduce((sum, r) => {
-        let normalizedMark = r.totalMark;
-        // If both judges have marks greater than 0, assume it's a 2-judge event out of 200, so take the average to make it out of 100
-        if (r.judge1Mark > 0 && r.judge2Mark > 0) {
-          normalizedMark = r.totalMark / 2;
-        }
-        return sum + normalizedMark;
-      }, 0);
-      const groupMarks = filteredGroupResults.reduce((sum, r) => sum + r.totalMark, 0);
+      const individualMarks = filteredIndividualResults.reduce((sum, r) => sum + getNormalizedMark(r), 0);
+      const groupMarks = filteredGroupResults.reduce((sum, r) => sum + getNormalizedMark(r), 0);
       const overallMarks = individualMarks; // Modified: Only include individual marks for Individual Scoreboard
       const totalEvents = filteredIndividualResults.length; // Modified: Only count individual events
       
@@ -234,8 +237,8 @@ export const CalculationService = {
         const comp = db.competitions.find(c => c.id === r.competitionId);
         return comp && comp.stageType === StageType.ON_STAGE;
       });
-      const onStageMarks = onStageIndividual.reduce((sum, r) => sum + r.totalMark, 0) + 
-                            onStageGroup.reduce((sum, r) => sum + r.totalMark, 0);
+      const onStageMarks = onStageIndividual.reduce((sum, r) => sum + getNormalizedMark(r), 0) + 
+                            onStageGroup.reduce((sum, r) => sum + getNormalizedMark(r), 0);
       
       // Off-stage subtotals
       const offStageIndividual = individualResults.filter(r => {
@@ -246,8 +249,8 @@ export const CalculationService = {
         const comp = db.competitions.find(c => c.id === r.competitionId);
         return comp && comp.stageType === StageType.OFF_STAGE;
       });
-      const offStageMarks = offStageIndividual.reduce((sum, r) => sum + r.totalMark, 0) + 
-                             offStageGroup.reduce((sum, r) => sum + r.totalMark, 0);
+      const offStageMarks = offStageIndividual.reduce((sum, r) => sum + getNormalizedMark(r), 0) + 
+                             offStageGroup.reduce((sum, r) => sum + getNormalizedMark(r), 0);
       
       // Overall totals
       const overallMarks = onStageMarks + offStageMarks;
@@ -281,7 +284,7 @@ export const CalculationService = {
         
         // results for this category
         const catResults = [...individualResults, ...groupResults].filter(r => r.categoryId === cat.id);
-        const marks = catResults.reduce((sum, r) => sum + r.totalMark, 0);
+        const marks = catResults.reduce((sum, r) => sum + getNormalizedMark(r), 0);
         
         let points = 0;
         catResults.forEach(r => {
