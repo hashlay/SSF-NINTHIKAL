@@ -22,6 +22,17 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
   const [selectedStageType, setSelectedStageType] = useState('');
   const [search, setSearch] = useState('');
 
+  // Print state
+  const [printMode, setPrintMode] = useState<'all' | 'first' | null>(null);
+
+  const handlePrint = (mode: 'all' | 'first') => {
+    setPrintMode(mode);
+    setTimeout(() => {
+      window.print();
+      setPrintMode(null);
+    }, 100);
+  };
+
   const fetchLists = async () => {
     setLoading(true);
     try {
@@ -81,6 +92,9 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
     // If unit filter selected, check if this unit has a winner in this comp
     if (selectedUnitId) {
       const unitHasWinner = compResults.some(r => {
+        // Only consider top 3 as winners
+        if (!r.rank || r.rank > 3) return false;
+
         if (r.participantId) {
           const p = participants.find(part => part.id === r.participantId);
           return p && p.unitId === selectedUnitId;
@@ -131,7 +145,7 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
     <div className="space-y-6 font-sans">
       
       {/* HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs print:hidden">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
             <Trophy className="h-6 w-6" />
@@ -141,17 +155,31 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
             <p className="text-xs text-slate-500 mt-0.5">Official winners announced for Ninthikal Sahityotsav events.</p>
           </div>
         </div>
-        <button 
-          onClick={fetchLists}
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-all text-xs font-bold cursor-pointer"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          Refresh Results
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button 
+            onClick={() => handlePrint('all')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-all text-xs font-bold cursor-pointer"
+          >
+            Print All Results
+          </button>
+          <button 
+            onClick={() => handlePrint('first')}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-all text-xs font-bold cursor-pointer"
+          >
+            Print First Prizes Only
+          </button>
+          <button 
+            onClick={fetchLists}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 hover:text-emerald-600 hover:bg-emerald-50 transition-all text-xs font-bold cursor-pointer"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh Results
+          </button>
+        </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+      <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 print:hidden">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-800 border-b pb-2">
           <Filter className="h-4 w-4 text-amber-500" />
           <span>Filter Announced Results</span>
@@ -219,6 +247,7 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
       </div>
 
       {/* RESULTS GRID */}
+      <div className="print:hidden">
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-100">
           <RefreshCw className="h-8 w-8 text-amber-500 animate-spin mb-3" />
@@ -319,6 +348,80 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
           })}
         </div>
       )}
+      </div>
+
+      {/* PRINT LAYOUT */}
+      <div className="hidden print:block font-sans text-black bg-white p-4">
+        {printMode === 'first' && (
+          <h1 className="text-2xl font-bold text-center mb-6 uppercase">First prizes of SSF Ninthikal Sector Sahityotsav</h1>
+        )}
+        {printMode === 'all' && (
+          <h1 className="text-2xl font-bold text-center mb-6 uppercase">Result of Ninthikal Sector Sahityotsav</h1>
+        )}
+
+        <div className="space-y-8">
+          {categories.filter(c => c.active).map(cat => {
+            const catComps = competitionsWithAnnouncedResults.filter(comp => comp.categoryId === cat.id);
+            if (catComps.length === 0) return null;
+
+            return (
+              <div key={cat.id} className="mb-8">
+                <h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4 uppercase">{cat.name}</h2>
+                <div className="space-y-5">
+                  {catComps.map((comp, idx) => {
+                    let compResults = results
+                      .filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3)
+                      .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+                    
+                    if (printMode === 'first') {
+                      compResults = compResults.filter(r => r.rank === 1);
+                    }
+                    if (compResults.length === 0) return null;
+
+                    return (
+                      <div key={comp.id} className="pl-4">
+                        <h3 className="font-bold text-lg mb-2">{idx + 1}. {comp.name}</h3>
+                        <div className="pl-6 space-y-1.5">
+                          {compResults.map(res => {
+                            let winnerName = 'Unknown Participant';
+                            let winnerUnitName = 'Unknown Unit';
+                            if (res.participantId) {
+                              const p = participants.find(part => part.id === res.participantId);
+                              if (p) {
+                                winnerName = p.fullName;
+                                const u = units.find(unit => unit.id === p.unitId);
+                                winnerUnitName = u ? u.name : '';
+                              }
+                            } else if (res.teamId) {
+                              const t = teams.find(team => team.id === res.teamId);
+                              if (t) {
+                                winnerName = t.teamName || 'Group Team';
+                                const u = units.find(unit => unit.id === t.unitId);
+                                winnerUnitName = u ? u.name : '';
+                              }
+                            }
+                            
+                            return (
+                              <div key={res.id} className="flex gap-3 text-base">
+                                {printMode === 'all' && (
+                                  <span className="font-bold min-w-[30px]">
+                                    {res.rank === 1 ? '1st' : res.rank === 2 ? '2nd' : res.rank === 3 ? '3rd' : `${res.rank}th`}
+                                  </span>
+                                )}
+                                <span>{winnerName} - {winnerUnitName}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
     </div>
   );

@@ -110,8 +110,8 @@ export default function ScoreboardView({ user, token }: ScoreboardViewProps) {
             className="px-3 py-2 border border-slate-300 rounded-xl text-slate-700 focus:outline-none text-xs font-semibold bg-slate-50"
           >
             <option value="">All Stages</option>
-            <option value="on-stage">On-Stage Only</option>
-            <option value="off-stage">Off-Stage Only</option>
+            <option value="on_stage">On-Stage Only</option>
+            <option value="off_stage">Off-Stage Only</option>
           </select>
         </div>
       </div>
