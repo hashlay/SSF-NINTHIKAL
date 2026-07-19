@@ -253,24 +253,26 @@ export const CalculationService = {
       const overallMarks = onStageMarks + offStageMarks;
       const completedResultsCount = individualResults.length + groupResults.length;
       
-      // Calculate placement counts (Rank 1, Rank 2, Rank 3)
+      // Calculate placement counts (Rank 1, Rank 2, Rank 3, Rank 4-7)
       let firstPlaceCount = 0;
       let secondPlaceCount = 0;
       let thirdPlaceCount = 0;
+      let fourthToSeventhPlaceCount = 0;
       
       const countPlacements = (resultsList: Result[]) => {
         resultsList.forEach(r => {
           if (r.rank === 1) firstPlaceCount++;
           else if (r.rank === 2) secondPlaceCount++;
           else if (r.rank === 3) thirdPlaceCount++;
+          else if (r.rank !== undefined && r.rank >= 4 && r.rank <= 7) fourthToSeventhPlaceCount++;
         });
       };
       
       countPlacements(individualResults);
       countPlacements(groupResults);
       
-      // Calculate official points: 1st place = 20pts, 2nd = 14pts, 3rd = 7pts
-      const overallPoints = (firstPlaceCount * 20) + (secondPlaceCount * 14) + (thirdPlaceCount * 7);
+      // Calculate official points: 1st place = 20pts, 2nd = 14pts, 3rd = 7pts, 4th-7th = 4pts
+      const overallPoints = (firstPlaceCount * 20) + (secondPlaceCount * 14) + (thirdPlaceCount * 7) + (fourthToSeventhPlaceCount * 4);
       
       // Compute Category Breakdown
       const categoryBreakdown = db.categories.map(cat => {
@@ -286,6 +288,7 @@ export const CalculationService = {
           if (r.rank === 1) points += 20;
           else if (r.rank === 2) points += 14;
           else if (r.rank === 3) points += 7;
+          else if (r.rank !== undefined && r.rank >= 4 && r.rank <= 7) points += 4;
         });
         
         return {
@@ -310,6 +313,7 @@ export const CalculationService = {
         firstPlaceCount,
         secondPlaceCount,
         thirdPlaceCount,
+        fourthToSeventhPlaceCount,
         categoryBreakdown
       };
     });

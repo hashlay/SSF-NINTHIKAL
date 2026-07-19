@@ -133,17 +133,21 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
 
                 <div className="flex justify-between items-center pt-2.5 border-t border-slate-100">
                   <div className="flex items-center gap-2 text-[10px] font-mono font-bold">
-                    <span className="flex items-center gap-0.5 bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200">
+                    <span className="flex items-center gap-0.5 bg-amber-50 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200" title="1st Place">
                       <Medal className="h-3 w-3 text-amber-500" />
                       {row.firstPlaceCount}
                     </span>
-                    <span className="flex items-center gap-0.5 bg-slate-50 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200">
+                    <span className="flex items-center gap-0.5 bg-slate-50 text-slate-800 px-1.5 py-0.5 rounded border border-slate-200" title="2nd Place">
                       <Medal className="h-3 w-3 text-slate-400" />
                       {row.secondPlaceCount}
                     </span>
-                    <span className="flex items-center gap-0.5 bg-orange-50 text-orange-900 px-1.5 py-0.5 rounded border border-orange-200">
+                    <span className="flex items-center gap-0.5 bg-orange-50 text-orange-900 px-1.5 py-0.5 rounded border border-orange-200" title="3rd Place">
                       <Medal className="h-3 w-3 text-orange-400" />
                       {row.thirdPlaceCount}
+                    </span>
+                    <span className="flex items-center gap-0.5 bg-emerald-50 text-emerald-900 px-1.5 py-0.5 rounded border border-emerald-200" title="4th to 7th Place">
+                      <Star className="h-3 w-3 text-emerald-500" />
+                      {row.fourthToSeventhPlaceCount || 0}
                     </span>
                   </div>
 
@@ -167,7 +171,7 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
               <h4 className="font-display font-bold text-slate-800 text-base">Unit Standings Registry</h4>
             </div>
             <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
-              Sorted by Points (1st=20, 2nd=14, 3rd=7)
+              Sorted by Points (1st=20, 2nd=14, 3rd=7, 4th-7th=4)
             </span>
           </div>
 
@@ -178,7 +182,7 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
                   <th className="px-6 py-4 text-left">Standing</th>
                   <th className="px-6 py-4 text-left">Unit Code</th>
                   <th className="px-6 py-4 text-left">Unit Name</th>
-                  <th className="px-6 py-4 text-center">Medal Tally (R1 - R2 - R3)</th>
+                  <th className="px-6 py-4 text-center">Medal Tally (R1 - R2 - R3 - R4-7)</th>
                   <th className="px-6 py-4 text-right">Raw Marks</th>
                   <th className="px-6 py-4 text-right">Official Points</th>
                   <th className="px-6 py-4 text-center">Action</th>
@@ -194,17 +198,21 @@ export default function StandingsView({ user, token }: StandingsViewProps) {
                       <td className="px-6 py-4 whitespace-nowrap font-semibold text-slate-800">{row.unitName}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-3 font-mono font-bold text-xs">
-                          <span className="flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200">
+                          <span className="flex items-center gap-1 bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200" title="1st Place">
                             <Medal className="h-3.5 w-3.5 text-amber-500" />
                             {row.firstPlaceCount}
                           </span>
-                          <span className="flex items-center gap-1 bg-slate-50 text-slate-800 px-2 py-0.5 rounded border border-slate-200">
+                          <span className="flex items-center gap-1 bg-slate-50 text-slate-800 px-2 py-0.5 rounded border border-slate-200" title="2nd Place">
                             <Medal className="h-3.5 w-3.5 text-slate-400" />
                             {row.secondPlaceCount}
                           </span>
-                          <span className="flex items-center gap-1 bg-orange-50 text-orange-900 px-2 py-0.5 rounded border border-orange-200">
+                          <span className="flex items-center gap-1 bg-orange-50 text-orange-900 px-2 py-0.5 rounded border border-orange-200" title="3rd Place">
                             <Medal className="h-3.5 w-3.5 text-orange-400" />
                             {row.thirdPlaceCount}
+                          </span>
+                          <span className="flex items-center gap-1 bg-emerald-50 text-emerald-900 px-2 py-0.5 rounded border border-emerald-200" title="4th to 7th Place">
+                            <Star className="h-3.5 w-3.5 text-emerald-500" />
+                            {row.fourthToSeventhPlaceCount || 0}
                           </span>
                         </div>
                       </td>
