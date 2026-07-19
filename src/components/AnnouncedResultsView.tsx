@@ -20,6 +20,7 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedUnitId, setSelectedUnitId] = useState('');
   const [selectedStageType, setSelectedStageType] = useState('');
+  const [selectedPrize, setSelectedPrize] = useState('');
   const [search, setSearch] = useState('');
 
   // Print state
@@ -86,15 +87,14 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
     if (search && !comp.name.toLowerCase().includes(search.toLowerCase())) return false;
 
     // Check if there are results for this comp
-    const compResults = results.filter(r => r.competitionId === comp.id);
-    if (compResults.length === 0) return false;
+    let compResults = results.filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3);
+    
+    if (selectedPrize) {
+      compResults = compResults.filter(r => r.rank?.toString() === selectedPrize);
+    }
 
-    // If unit filter selected, check if this unit has a winner in this comp
     if (selectedUnitId) {
-      const unitHasWinner = compResults.some(r => {
-        // Only consider top 3 as winners
-        if (!r.rank || r.rank > 3) return false;
-
+      compResults = compResults.filter(r => {
         if (r.participantId) {
           const p = participants.find(part => part.id === r.participantId);
           return p && p.unitId === selectedUnitId;
@@ -104,10 +104,9 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
         }
         return false;
       });
-      if (!unitHasWinner) return false;
     }
 
-    return true;
+    return compResults.length > 0;
   });
 
   // Get rank name badge
@@ -185,7 +184,7 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
           <span>Filter Announced Results</span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Search */}
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Search Event</label>
@@ -243,6 +242,21 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
               <option value={StageType.OFF_STAGE}>Off-Stage Only</option>
             </select>
           </div>
+
+          {/* Prize selection */}
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">Prize Placement</label>
+            <select
+              value={selectedPrize}
+              onChange={(e) => setSelectedPrize(e.target.value)}
+              className="mt-1.5 block w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-xs font-medium cursor-pointer"
+            >
+              <option value="">All Prizes</option>
+              <option value="1">1st Prize Only</option>
+              <option value="2">2nd Prize Only</option>
+              <option value="3">3rd Prize Only</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -266,9 +280,26 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
             const category = categories.find(c => c.id === comp.categoryId);
             
             // Get sorted winners for this competition
-            const compResults = results
-              .filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3)
-              .sort((a, b) => (a.rank || 0) - (b.rank || 0));
+            let compResults = results.filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3);
+            
+            if (selectedPrize) {
+              compResults = compResults.filter(r => r.rank?.toString() === selectedPrize);
+            }
+
+            if (selectedUnitId) {
+              compResults = compResults.filter(r => {
+                if (r.participantId) {
+                  const p = participants.find(part => part.id === r.participantId);
+                  return p && p.unitId === selectedUnitId;
+                } else if (r.teamId) {
+                  const t = teams.find(team => team.id === r.teamId);
+                  return t && t.unitId === selectedUnitId;
+                }
+                return false;
+              });
+            }
+
+            compResults.sort((a, b) => (a.rank || 0) - (b.rank || 0));
 
             return (
               <div key={comp.id} className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col justify-between">
@@ -362,60 +393,77 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
         <div className="space-y-8">
           {categories.filter(c => c.active).map(cat => {
             const catComps = competitionsWithAnnouncedResults.filter(comp => comp.categoryId === cat.id);
-            if (catComps.length === 0) return null;
+            
+            // Map and filter printable results for each competition
+            const printableComps = catComps.map(comp => {
+              let compResults = results.filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3);
+              
+              if (printMode === 'first') {
+                compResults = compResults.filter(r => r.rank === 1);
+              } else if (selectedPrize) {
+                compResults = compResults.filter(r => r.rank?.toString() === selectedPrize);
+              }
+
+              if (selectedUnitId) {
+                compResults = compResults.filter(r => {
+                  if (r.participantId) {
+                    const p = participants.find(part => part.id === r.participantId);
+                    return p && p.unitId === selectedUnitId;
+                  } else if (r.teamId) {
+                    const t = teams.find(team => team.id === r.teamId);
+                    return t && t.unitId === selectedUnitId;
+                  }
+                  return false;
+                });
+              }
+
+              compResults.sort((a, b) => (a.rank || 0) - (b.rank || 0));
+              return { comp, results: compResults };
+            }).filter(item => item.results.length > 0);
+
+            if (printableComps.length === 0) return null;
 
             return (
               <div key={cat.id} className="mb-8">
                 <h2 className="text-xl font-bold border-b-2 border-black pb-1 mb-4 uppercase">{cat.name}</h2>
                 <div className="space-y-5">
-                  {catComps.map((comp, idx) => {
-                    let compResults = results
-                      .filter(r => r.competitionId === comp.id && r.rank && r.rank <= 3)
-                      .sort((a, b) => (a.rank || 0) - (b.rank || 0));
-                    
-                    if (printMode === 'first') {
-                      compResults = compResults.filter(r => r.rank === 1);
-                    }
-                    if (compResults.length === 0) return null;
-
-                    return (
-                      <div key={comp.id} className="pl-4">
-                        <h3 className="font-bold text-lg mb-2">{idx + 1}. {comp.name}</h3>
-                        <div className="pl-6 space-y-1.5">
-                          {compResults.map(res => {
-                            let winnerName = 'Unknown Participant';
-                            let winnerUnitName = 'Unknown Unit';
-                            if (res.participantId) {
-                              const p = participants.find(part => part.id === res.participantId);
-                              if (p) {
-                                winnerName = p.fullName;
-                                const u = units.find(unit => unit.id === p.unitId);
-                                winnerUnitName = u ? u.name : '';
-                              }
-                            } else if (res.teamId) {
-                              const t = teams.find(team => team.id === res.teamId);
-                              if (t) {
-                                winnerName = t.teamName || 'Group Team';
-                                const u = units.find(unit => unit.id === t.unitId);
-                                winnerUnitName = u ? u.name : '';
-                              }
+                  {printableComps.map((item, idx) => (
+                    <div key={item.comp.id} className="pl-4">
+                      <h3 className="font-bold text-lg mb-2">{idx + 1}. {item.comp.name}</h3>
+                      <div className="pl-6 space-y-1.5">
+                        {item.results.map(res => {
+                          let winnerName = 'Unknown Participant';
+                          let winnerUnitName = 'Unknown Unit';
+                          if (res.participantId) {
+                            const p = participants.find(part => part.id === res.participantId);
+                            if (p) {
+                              winnerName = p.fullName;
+                              const u = units.find(unit => unit.id === p.unitId);
+                              winnerUnitName = u ? u.name : '';
                             }
-                            
-                            return (
-                              <div key={res.id} className="flex gap-3 text-base">
-                                {printMode === 'all' && (
-                                  <span className="font-bold min-w-[30px]">
-                                    {res.rank === 1 ? '1st' : res.rank === 2 ? '2nd' : res.rank === 3 ? '3rd' : `${res.rank}th`}
-                                  </span>
-                                )}
-                                <span>{winnerName} - {winnerUnitName}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                          } else if (res.teamId) {
+                            const t = teams.find(team => team.id === res.teamId);
+                            if (t) {
+                              winnerName = t.teamName || 'Group Team';
+                              const u = units.find(unit => unit.id === t.unitId);
+                              winnerUnitName = u ? u.name : '';
+                            }
+                          }
+                          
+                          return (
+                            <div key={res.id} className="flex gap-3 text-base">
+                              {printMode === 'all' && (
+                                <span className="font-bold min-w-[30px]">
+                                  {res.rank === 1 ? '1st' : res.rank === 2 ? '2nd' : res.rank === 3 ? '3rd' : `${res.rank}th`}
+                                </span>
+                              )}
+                              <span>{winnerName} - {winnerUnitName}</span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             );
