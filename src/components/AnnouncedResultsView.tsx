@@ -382,7 +382,7 @@ export default function AnnouncedResultsView({ user, token }: AnnouncedResultsVi
       </div>
 
       {/* PRINT LAYOUT */}
-      <div className="hidden print:block font-sans text-black bg-white p-4">
+      <div className="hidden print:block print-sheet font-sans text-black bg-white p-8">
         {printMode === 'first' && (
           <h1 className="text-2xl font-bold text-center mb-6 uppercase">First prizes of SSF Ninthikal Sector Sahityotsav</h1>
         )}
